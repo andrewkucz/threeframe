@@ -1,0 +1,38 @@
+{
+  "name": "@threeframe/core",
+  "version": "0.1.0",
+  "description": "Asset lifecycle and orthographic scene primitives for Threeframe.",
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "vp pack",
+    "test": "vp test"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@react-three/fiber": "^9.8.1",
+    "@types/react": "^19.2.0",
+    "@types/three": "^0.184.0",
+    "react": "^19.2.0",
+    "three": "^0.184.0",
+    "typescript": "catalog:",
+    "vite-plus": "catalog:"
+  },
+  "peerDependencies": {
+    "@react-three/fiber": "^9.0.0",
+    "react": "^19.0.0",
+    "three": "^0.184.0"
+  }
+}

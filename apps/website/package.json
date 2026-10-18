@@ -1,0 +1,30 @@
+{
+  "name": "@threeframe/playground",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vp dev",
+    "build": "vp exec tsc && vp build",
+    "preview": "vp preview"
+  },
+  "dependencies": {
+    "@react-three/fiber": "^9.8.1",
+    "@threeframe/core": "workspace:*",
+    "@threeframe/engine": "workspace:*",
+    "@threeframe/ink": "workspace:*",
+    "@threeframe/spine": "workspace:*",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "three": "^0.184.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@types/three": "^0.184.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "typescript": "^7.0.2",
+    "vite": "catalog:",
+    "vite-plus": "catalog:"
+  }
+}
