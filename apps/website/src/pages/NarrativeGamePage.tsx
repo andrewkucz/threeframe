@@ -1,14 +1,14 @@
 import { NarrativeGame, type GameSave, type NarrativeGameHandle } from "@threeframe/engine";
 import { useCallback, useMemo, useRef, useState } from "react";
-import type { NarrativeEvent } from "./types";
-import { createDemo, source, speakers } from "./demo";
-import { Icon } from "./ui";
-import { Controls } from "./docs/Controls";
-import { CodeBlock, Disclosure, DocsExample, Preview } from "./docs/DocsExample";
-import { code, componentExample, gameSetup, jsx } from "./docs/examples";
-import { playerControls, playerDefaults, playerReference } from "./docs/options";
+import type { NarrativeEvent } from "../types";
+import { createDemo, source, speakers } from "../demo";
+import { Icon } from "../ui";
+import { Controls } from "../docs/Controls";
+import { CodeBlock, Disclosure, DocsExample, Preview } from "../docs/DocsExample";
+import { code, componentExample, gameSetup, jsx } from "../docs/examples";
+import { playerControls, playerDefaults, playerReference } from "../docs/options";
 
-export function PlayerLab() {
+export default function NarrativeGamePage() {
   const game = useRef<NarrativeGameHandle>(null);
   const [settings, setSettings] = useState(playerDefaults);
   const [script, setScript] = useState(source);
@@ -63,7 +63,7 @@ export function PlayerLab() {
     }
   };
   const usage = componentExample(
-    'import { NarrativeGame } from "@threeframe/engine";\nimport { game, speakers } from "./game";',
+    'import { NarrativeGame } from "@threeframe/engine";\nimport { game, speakers } from "../game";',
     jsx("NarrativeGame", {
       definition: code("game"),
       paused: settings.paused,

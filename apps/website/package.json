@@ -16,6 +16,7 @@
     "@threeframe/spine": "workspace:*",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "react-router": "catalog:",
     "three": "^0.184.0"
   },
   "devDependencies": {
