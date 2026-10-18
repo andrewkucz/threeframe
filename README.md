@@ -125,4 +125,4 @@ Use compiled Ink JSON in shipped games to avoid loading the authoring compiler. 
 - [Spine runtimes](https://github.com/EsotericSoftware/spine-runtimes)
 - [Third-party asset notices](THIRD_PARTY_NOTICES.md)
 
-The demo's Spineboy JSON, binary, atlas, and texture were copied from `example/spineboy-4.3/export`. The earlier `/Users/andrew/dev/r3f2dge` implementation informed the review, but these packages have their own APIs and loaders. The demo story and SVG scenery are local, editable assets.
+The demo's Spineboy JSON, binary, atlas, and texture are Esoteric Software's Spineboy 4.3 example exports (see `THIRD_PARTY_NOTICES.md`). The earlier `/Users/andrew/dev/r3f2dge` implementation informed the review, but these packages have their own APIs and loaders. The demo story and SVG scenery are local, editable assets.

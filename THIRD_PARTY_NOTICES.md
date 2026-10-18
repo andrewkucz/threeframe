@@ -2,7 +2,7 @@
 
 ## Spineboy and Spine runtimes
 
-Spineboy demo files in `apps/website/public/assets/spineboy` were copied from the user-supplied `example/spineboy-4.3/export`. Spineboy and the Spine runtimes are by Esoteric Software. The complete upstream runtime license is preserved in `apps/website/public/assets/spineboy/LICENSE` and `packages/spine/LICENSE.spine-runtimes`.
+Spineboy 4.3 exports live in `apps/website/public/assets/spineboy` (demo) and `packages/spine/tests/fixtures/spineboy` (compatibility test). Spineboy and the Spine runtimes are by Esoteric Software. The Spineboy example license, which must accompany the images, is preserved in `apps/website/public/assets/spineboy/LICENSE.spineboy` and `packages/spine/tests/fixtures/spineboy/LICENSE`; it does not allow commercial use of the images. The complete upstream runtime license is preserved in `apps/website/public/assets/spineboy/LICENSE` and `packages/spine/LICENSE.spine-runtimes`.
 
 The Spine runtime is not MIT-licensed. Review the [Spine Runtimes License Agreement](https://github.com/EsotericSoftware/spine-runtimes/blob/4.3/LICENSE) and [Spine Editor license](https://esotericsoftware.com/spine-editor-license) for your use and distribution.
 

@@ -8,7 +8,7 @@ import {
 import { describe, expect, it } from "vite-plus/test";
 
 const read = (name: string) =>
-  readFileSync(new URL(`../../../example/spineboy-4.3/export/${name}`, import.meta.url));
+  readFileSync(new URL(`./fixtures/spineboy/${name}`, import.meta.url));
 describe("bundled Spine 4.3 exports", () => {
   it("parses JSON and binary with matching animation names and skeleton dimensions", () => {
     const atlas = new TextureAtlas(read("spineboy.atlas").toString());

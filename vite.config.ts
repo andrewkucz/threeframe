@@ -4,7 +4,7 @@ export default defineConfig({
   staged: {
     "*": "vp check --fix",
   },
-  fmt: { ignorePatterns: ["example/**", "apps/website/public/assets/**"] },
+  fmt: { ignorePatterns: ["apps/website/public/assets/**", "packages/*/tests/fixtures/**"] },
   resolve: { conditions: ["development"] },
   test: { include: ["packages/*/tests/**/*.test.ts", "apps/*/tests/**/*.test.ts"] },
   lint: {
