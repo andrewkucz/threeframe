@@ -175,6 +175,10 @@ svg {
 .sidebar nav {
   display: grid;
   gap: 4px;
+  margin-top: 36px;
+}
+.sidebar nav .sidebar-caption {
+  margin: 20px 10px 8px;
 }
 .nav-item {
   display: flex;
@@ -258,6 +262,93 @@ h1 {
   font-size: 13px;
   line-height: 1.6;
   margin: 0;
+}
+.overview-flow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 14px;
+  margin: 0 0 22px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.overview-flow code,
+.package-card dd code {
+  font: 12px var(--mono);
+  color: var(--green);
+}
+.overview-flow span {
+  font-size: 12px;
+}
+.package-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
+  gap: 16px;
+  max-width: 1080px;
+}
+.package-card {
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+}
+.package-card h2 {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0;
+  font: 600 14px var(--mono);
+  color: #27513c;
+}
+.package-card > p {
+  margin: 8px 0 16px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--muted);
+}
+.package-card dl {
+  display: grid;
+  gap: 9px;
+  margin: 0 0 18px;
+}
+.package-card dl > div {
+  display: grid;
+  grid-template-columns: 68px 1fr;
+  gap: 10px;
+}
+.package-card dt {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  line-height: 20px;
+}
+.package-card dd {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin: 0;
+  line-height: 20px;
+}
+.package-card footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: auto;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+  font-size: 11px;
+  color: var(--muted);
+}
+.package-card footer a {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--green);
 }
 .docs-layout {
   display: grid;

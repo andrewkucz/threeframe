@@ -1,6 +1,10 @@
-import { Navigate, createBrowserRouter } from "react-router";
-import { notFound, pages } from "./pages";
+import { createBrowserRouter } from "react-router";
+import { notFound, overview, pages, type Page } from "./pages";
 import { NotFound, SiteError, SiteLayout, SiteLoading } from "./SiteLayout";
+
+const lazyPage = (page: Page) => ({
+  Component: async () => (await page.load()).default,
+});
 
 export const router = createBrowserRouter([
   {
@@ -8,12 +12,8 @@ export const router = createBrowserRouter([
     HydrateFallback: SiteLoading,
     ErrorBoundary: SiteError,
     children: [
-      { index: true, handle: pages[0], element: <Navigate replace to={`/${pages[0].path}`} /> },
-      ...pages.map((page) => ({
-        path: page.path,
-        handle: page,
-        lazy: { Component: async () => (await page.load()).default },
-      })),
+      { index: true, handle: overview, lazy: lazyPage(overview) },
+      ...pages.map((page) => ({ path: page.path, handle: page, lazy: lazyPage(page) })),
       { path: "*", handle: notFound, Component: NotFound },
     ],
   },

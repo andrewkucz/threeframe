@@ -9,7 +9,7 @@ import {
   useNavigation,
   useRouteError,
 } from "react-router";
-import { notFound, pages, type PageHandle } from "./pages";
+import { notFound, overview, pages, type PageHandle } from "./pages";
 import { Icon } from "./ui";
 
 function SiteShell({ page, children }: { page?: PageHandle; children: ReactNode }) {
@@ -38,10 +38,14 @@ function SiteShell({ page, children }: { page?: PageHandle; children: ReactNode 
           </span>
           threeframe<span className="brand-period">.</span>
         </Link>
-        <div className="sidebar-caption">
-          Components <span>0.1</span>
-        </div>
-        <nav aria-label="Component documentation">
+        <nav aria-label="Documentation">
+          <NavLink className="nav-item" to="/" end>
+            <Icon name={overview.icon} />
+            <span>{overview.label}</span>
+          </NavLink>
+          <div className="sidebar-caption">
+            Components <span>0.1</span>
+          </div>
           {pages.map((entry) => (
             <NavLink className="nav-item" to={`/${entry.path}`} key={entry.path}>
               <Icon name={entry.icon} />
@@ -117,7 +121,7 @@ export function SiteError() {
 export function NotFound() {
   return (
     <p className="docs-note">
-      Choose a component from the sidebar, or go back to <Link to="/">the first example</Link>.
+      Choose a component from the sidebar, or go back to the <Link to="/">overview</Link>.
     </p>
   );
 }

@@ -46,6 +46,13 @@ export const pages: Page[] = [
     load: () => import("./pages/SceneAssetsPage"),
   },
 ];
+export const overview: Page = {
+  path: "",
+  icon: "overview",
+  label: "Overview",
+  description: "A React Three Fiber toolkit for 2D narrative games, split into four packages.",
+  load: () => import("./pages/OverviewPage"),
+};
 export const notFound: PageHandle = {
   label: "Page not found",
   description: "There is no component page at this address.",

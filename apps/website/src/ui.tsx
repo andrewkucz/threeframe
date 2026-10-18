@@ -25,6 +25,14 @@ export function Icon({ name, size = 18 }: { name: string; size?: number }) {
         <path d="m12 3 9 5-9 5-9-5Zm-9 9 9 5 9-5M3 16l9 5 9-5" />
       </>
     ),
+    overview: (
+      <>
+        <rect x="3" y="3" width="7" height="7" rx="1.5" />
+        <rect x="14" y="3" width="7" height="7" rx="1.5" />
+        <rect x="3" y="14" width="7" height="7" rx="1.5" />
+        <rect x="14" y="14" width="7" height="7" rx="1.5" />
+      </>
+    ),
     copy: (
       <>
         <rect x="8" y="8" width="12" height="13" rx="2" />
