@@ -316,6 +316,36 @@ h1 {
   flex-wrap: wrap;
   padding-block: 9px;
 }
+.preview-footer-group {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+/* Equal-growth side groups keep the status text centred in the footer. */
+.preview-footer-group {
+  flex: 1 1 0;
+}
+.preview-footer-status {
+  flex: none;
+  text-align: center;
+}
+.preview-footer-actions {
+  justify-content: flex-end;
+}
+.preview-footer-group > select {
+  width: auto;
+  min-height: 28px;
+  padding: 4px 6px;
+  font-size: 11px;
+}
+.file-button {
+  cursor: pointer;
+}
+.file-button:focus-within {
+  outline: 2px solid #517751;
+  outline-offset: 2px;
+}
 .preview-caption {
   color: var(--muted);
   font-size: 11px;

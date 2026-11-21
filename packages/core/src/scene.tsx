@@ -121,8 +121,14 @@ export function CanvasPanel({
     const scale = Math.max(0.5, Math.min(4, resolution));
     const pixelWidth = Math.max(1, Math.ceil(width * scale));
     const pixelHeight = Math.max(1, Math.ceil(height * scale));
-    if (canvas.width !== pixelWidth) canvas.width = pixelWidth;
-    if (canvas.height !== pixelHeight) canvas.height = pixelHeight;
+    if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
+      canvas.width = pixelWidth;
+      canvas.height = pixelHeight;
+      // WebGL2 texture storage is immutable: three.js only updates a sub-region on later uploads,
+      // so a resized canvas would leave stale pixels behind. Release the GPU texture to force
+      // reallocation at the new size.
+      texture.dispose();
+    }
     const context = canvas.getContext("2d");
     if (!context) throw new Error("Canvas 2D is unavailable.");
     context.setTransform(scale, 0, 0, scale, 0, 0);

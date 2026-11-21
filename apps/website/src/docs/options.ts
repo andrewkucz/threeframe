@@ -171,6 +171,7 @@ export interface DialogueSettings {
   background: string;
   color: string;
   radius: number;
+  backdrop: string;
 }
 export const dialogueDefaults: DialogueSettings = {
   mode: "text",
@@ -186,6 +187,7 @@ export const dialogueDefaults: DialogueSettings = {
   background: "#101d26",
   color: "#f3eee2",
   radius: 14,
+  backdrop: "grid",
 };
 export const dialogueControls: ControlSpec<DialogueSettings>[] = [
   {

@@ -79,19 +79,29 @@ export function spineAssets(binary: boolean) {
   return `${sharedAssets}\n\nimport { spineAsset } from "@threeframe/spine";\n\nexport const spineboy = spineAsset(${printValue({ skeleton: `/assets/spineboy/spineboy-pro.${binary ? "skel" : "json"}`, atlas: "/assets/spineboy/spineboy.atlas", format: binary ? "binary" : "json" })});`;
 }
 
+export const gridHelper =
+  '<gridHelper args={[2560, 64, "#4a6472", "#22353f"]} rotation-x={Math.PI / 2} position-z={-100} />';
+
 export function sceneHost({
   background = true,
   font = true,
   fit = "contain",
-}: { background?: boolean; font?: boolean; fit?: "contain" | "cover" } = {}) {
+}: {
+  /** `true` is the valley backdrop; `"grid"` draws a GridHelper facing the camera. */
+  background?: boolean | "valley" | "tower" | "grid";
+  font?: boolean;
+  fit?: "contain" | "cover";
+} = {}) {
+  const backdrop = background === true ? "valley" : background === "grid" ? false : background;
+  const imports = [backdrop, font && "storyFont"].filter(Boolean).join(", ");
   return `import { Suspense } from "react";
-import { AssetProvider, SceneCanvas, useOwnedAssetStore${background ? ", Backdrop" : ""}${font ? ", useAsset" : ""} } from "@threeframe/core";
-${background || font ? `import { ${[background && "valley", font && "storyFont"].filter(Boolean).join(", ")} } from "./assets";\n` : ""}import Example from "./Example";
+import { AssetProvider, SceneCanvas, useOwnedAssetStore${backdrop ? ", Backdrop" : ""}${font ? ", useAsset" : ""} } from "@threeframe/core";
+${imports ? `import { ${imports} } from "./assets";\n` : ""}import Example from "./Example";
 
 function Scene() {${font ? "\n  useAsset(storyFont); // Wait for the font before measuring text." : ""}
   return (
     <>
-      ${background ? "<Backdrop asset={valley} />\n      " : ""}<Example />
+      ${backdrop ? `<Backdrop asset={${backdrop}} />\n      ` : background === "grid" ? `${gridHelper}\n      ` : ""}<Example />
     </>
   );
 }

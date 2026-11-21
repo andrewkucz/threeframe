@@ -71,6 +71,8 @@ describe("copyable component examples", () => {
       gameSetup,
       sceneHost(),
       sceneHost({ font: false }),
+      sceneHost({ background: "grid" }),
+      sceneHost({ background: "tower", font: false }),
       sceneHost({ background: false, font: false, fit: "cover" }),
     ]) {
       const result = await transformWithOxc(source, "Setup.tsx");

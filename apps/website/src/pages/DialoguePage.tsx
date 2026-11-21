@@ -1,7 +1,8 @@
-import { Backdrop } from "@threeframe/core";
+import { Backdrop, textureAsset, type Asset } from "@threeframe/core";
 import { DialogueBox, InkStory, type DialogueDisplay, type DialogueHandle } from "@threeframe/ink";
-import { useMemo, useRef, useState } from "react";
-import { speakers, storyFont, valley } from "../demo";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { Texture } from "three";
+import { speakers, storyFont, tower, valley } from "../demo";
 import { Controls } from "../docs/Controls";
 import { Disclosure, DocsExample, Preview } from "../docs/DocsExample";
 import { code, componentExample, jsx, sceneHost, sharedAssets } from "../docs/examples";
@@ -9,7 +10,7 @@ import { dialogueControls, dialogueDefaults, dialogueReference } from "../docs/o
 import { LabScene } from "../LabScene";
 import { Icon } from "../ui";
 
-const dialogueAssets = [valley, storyFont];
+const builtInBackdrops: Record<string, Asset<Texture>> = { valley, tower };
 const sample =
   "Some stories begin with a grand adventure. This one begins with a light in a window, and the quiet feeling that someone, somewhere, has been waiting for you.\n\nBeyond the mountains, there is a place where every forgotten story finds a home. Perhaps yours belongs there too. Keep going. The road is longer than it looks, but you do not have to walk it alone. 🌙";
 const inkSample =
@@ -29,6 +30,13 @@ export default function DialoguePage() {
   const [iteration, setIteration] = useState(0);
   const [message, setMessage] = useState("");
   const [display, setDisplay] = useState<DialogueDisplay | null>(null);
+  const [upload, setUpload] = useState<{ name: string; url: string } | null>(null);
+  useEffect(() => (upload ? () => URL.revokeObjectURL(upload.url) : undefined), [upload]);
+  const uploadAsset = useMemo(() => upload && textureAsset(upload.url), [upload]);
+  const backdrop =
+    settings.backdrop === "custom" ? uploadAsset : builtInBackdrops[settings.backdrop];
+  // Stable per backdrop so LabScene only reloads (and restarts the dialogue) when it changes.
+  const assets = useMemo(() => (backdrop ? [backdrop, storyFont] : [storyFont]), [backdrop]);
   const ink = settings.mode === "ink";
   const presentation = useMemo(
     () => ({
@@ -84,52 +92,97 @@ export default function DialoguePage() {
       <div className="example-column">
         <Preview
           label={`${component} preview`}
-          actions={
-            <button
-              className="text-button"
-              onClick={() => {
-                setIteration(iteration + 1);
-                setMessage("");
-              }}
-            >
-              <Icon name="reset" size={14} />
-              Replay
-            </button>
-          }
           footer={
             <>
-              <button
-                className="small-button"
-                disabled={
-                  !display ||
-                  Boolean(display.choices.length) ||
-                  (display.printing && !settings.fastSkip)
-                }
-                onClick={() => ref.current?.advance()}
-              >
-                {display?.printing ? "Reveal" : "Continue"}
-                <Icon name="arrow" size={14} />
-              </button>
-              {display?.choices.map((choice) => (
-                <button
-                  className="small-button"
-                  key={choice.index}
-                  onClick={() => ref.current?.choose(choice.index)}
+              <div className="preview-footer-group">
+                <select
+                  aria-label="Preview backdrop"
+                  value={settings.backdrop}
+                  onChange={(event) =>
+                    setSettings((previous) => ({ ...previous, backdrop: event.target.value }))
+                  }
                 >
-                  {choice.text}
-                </button>
-              ))}
+                  <option value="grid">Grid (default)</option>
+                  <option value="valley">valley.svg</option>
+                  <option value="tower">tower.svg</option>
+                  <option value="custom">Upload image…</option>
+                </select>
+                {settings.backdrop === "custom" && (
+                  <>
+                    <label className="small-button file-button">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="sr-only"
+                        onChange={(event) => {
+                          const file = event.target.files?.[0];
+                          if (file) setUpload({ name: file.name, url: URL.createObjectURL(file) });
+                          event.target.value = "";
+                        }}
+                      />
+                      {upload ? "Change image…" : "Choose image…"}
+                    </label>
+                    <span className="preview-caption">
+                      {upload ? upload.name : "Stays in this browser tab only."}
+                    </span>
+                  </>
+                )}
+              </div>
               <span className="sr-only" aria-live="polite">
                 {display?.text}
               </span>
-              <span className="preview-caption" role="status">
+              <span className="preview-caption preview-footer-status" role="status">
                 {message || (display ? `Page ${display.page + 1} of ${display.pageCount}` : "")}
               </span>
+              <div className="preview-footer-group preview-footer-actions">
+                <button
+                  className="small-button"
+                  onClick={() => {
+                    setIteration(iteration + 1);
+                    setMessage("");
+                    setDisplay(null);
+                  }}
+                >
+                  <Icon name="reset" size={14} />
+                  Start over
+                </button>
+                <button
+                  className="small-button"
+                  disabled={
+                    !display ||
+                    Boolean(display.choices.length) ||
+                    (display.printing && !settings.fastSkip)
+                  }
+                  onClick={() => ref.current?.advance()}
+                >
+                  {display?.printing ? "Reveal" : "Continue"}
+                  <Icon name="arrow" size={14} />
+                </button>
+                {display?.choices.map((choice) => (
+                  <button
+                    className="small-button"
+                    key={choice.index}
+                    onClick={() => ref.current?.choose(choice.index)}
+                  >
+                    {choice.text}
+                  </button>
+                ))}
+              </div>
             </>
           }
         >
-          <LabScene assets={dialogueAssets}>
-            <Backdrop asset={valley} />
+          <LabScene assets={assets}>
+            {backdrop ? (
+              <Backdrop asset={backdrop} />
+            ) : (
+              settings.backdrop === "grid" && (
+                <gridHelper
+                  args={[2560, 64, "#4a6472", "#22353f"]}
+                  rotation-x={Math.PI / 2}
+                  position-z={-100}
+                />
+              )
+            )}
             {ink ? (
               <InkStory
                 key={`ink-${iteration}`}
@@ -143,7 +196,7 @@ export default function DialoguePage() {
                 }}
                 onEvent={(event) => {
                   if (event.type === "end") {
-                    setMessage("Story complete. Replay to restart.");
+                    setMessage("Story complete. Start over to replay.");
                     setDisplay(null);
                   }
                 }}
@@ -167,7 +220,17 @@ export default function DialoguePage() {
           usage={usage}
           setup={[
             { name: "assets.ts", source: sharedAssets },
-            { name: "App.tsx", source: sceneHost() },
+            {
+              name: "App.tsx",
+              source: sceneHost({
+                background:
+                  settings.backdrop === "grid"
+                    ? "grid"
+                    : settings.backdrop === "tower"
+                      ? "tower"
+                      : "valley",
+              }),
+            },
             ...(ink ? [{ name: "story.ink", source: script, language: "ink" as const }] : []),
           ]}
           reference={dialogueReference.filter(
