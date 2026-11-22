@@ -11,7 +11,13 @@ import { tower, valley } from "../demo";
 import { Controls } from "../docs/Controls";
 import { Disclosure, DocsExample, Preview } from "../docs/DocsExample";
 import { code, jsx } from "../docs/examples";
-import { sceneControls, sceneDefaults, sceneReference } from "../docs/options";
+import {
+  sceneBackdropProps,
+  sceneCameraProps,
+  sceneControls,
+  sceneDefaults,
+  sceneReference,
+} from "../docs/options";
 import { Icon } from "../ui";
 
 const sceneAssets = [valley, tower];
@@ -39,12 +45,8 @@ function AssetSession({ reset }: { reset: () => void }) {
       active = false;
     };
   }, [store]);
-  const backdrop = {
-    fit: settings.fit,
-    opacity: settings.opacity,
-    width: settings.width,
-    height: settings.height,
-  };
+  const backdrop = sceneBackdropProps(settings);
+  const camera = sceneCameraProps(settings);
   const backdropCode = jsx("Backdrop", { asset: code("background"), ...backdrop });
   const usage = `import { Suspense } from "react";
 import { AssetProvider, Backdrop, SceneCanvas, textureAsset, useOwnedAssetStore } from "@threeframe/core";
@@ -56,8 +58,11 @@ export default function Example() {
   return (
     <div style={{ aspectRatio: "16 / 10" }}>
       <AssetProvider store={store}>
-        <SceneCanvas width={1280} height={720} fit="${settings.cameraFit}">
-          <color attach="background" args={["#14232c"]} />
+${jsx("SceneCanvas", { width: 1280, height: 720, ...camera })
+  .replace(/\n\/>$/, "\n>")
+  .split("\n")
+  .map((line) => `        ${line}`)
+  .join("\n")}
           <Suspense fallback={null}>
 ${backdropCode
   .split("\n")
@@ -92,8 +97,7 @@ ${backdropCode
           <div className="lab-canvas scene-preview">
             {ready ? (
               <AssetProvider store={store}>
-                <SceneCanvas fit={settings.cameraFit}>
-                  <color attach="background" args={["#14232c"]} />
+                <SceneCanvas {...camera}>
                   <Suspense fallback={null}>
                     <Backdrop
                       asset={settings.backdrop === "valley" ? valley : tower}
@@ -186,6 +190,7 @@ ${backdropCode
         values={settings}
         onChange={(key, value) => setSettings((previous) => ({ ...previous, [key]: value }))}
         onReset={() => setSettings(sceneDefaults)}
+        collapsible
       />
     </div>
   );

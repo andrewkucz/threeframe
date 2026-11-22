@@ -1,11 +1,12 @@
-import { Backdrop, useAsset } from "@threeframe/core";
+import { useAsset } from "@threeframe/core";
 import { SpineSprite, type SpineSpriteHandle } from "@threeframe/spine";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { spineboy, spineboyBinary, valley } from "../demo";
+import { spineboy, spineboyBinary } from "../demo";
+import { useBackdropPicker } from "../docs/BackdropPicker";
 import { Controls, options } from "../docs/Controls";
 import { CodeBlock, Disclosure, DocsExample, Preview } from "../docs/DocsExample";
 import { code, componentExample, jsx, printValue, sceneHost, sharedAssets } from "../docs/examples";
-import { spineControls, spineDefaults, spineReference } from "../docs/options";
+import { spineControls, spineDefaults, spineProps, spineReference } from "../docs/options";
 import { LabScene } from "../LabScene";
 import { Icon } from "../ui";
 
@@ -29,9 +30,14 @@ export default function SpineSpritePage() {
   const [animations, setAnimations] = useState(["idle", "walk", "run", "jump"]);
   const [events, setEvents] = useState<string[]>([]);
   const binary = settings.format === "binary";
-  const assets = useMemo(() => [binary ? spineboyBinary : spineboy, valley], [binary]);
-  const { format: _format, ...sprite } = settings;
-  const props = { ...sprite, position: [0, -270, 0] as [number, number, number] };
+  const stageColor = settings.previewBackground;
+  const backdropPicker = useBackdropPicker(stageColor);
+  const backdrop = backdropPicker.asset;
+  const assets = useMemo(
+    () => [binary ? spineboyBinary : spineboy, ...(backdrop ? [backdrop] : [])],
+    [binary, backdrop],
+  );
+  const props = { ...spineProps(settings), position: [0, -270, 0] as [number, number, number] };
   const listener = useMemo(
     () => ({
       start: (entry: { animation: { name: string } | null }) =>
@@ -65,6 +71,7 @@ export default function SpineSpritePage() {
           }
           footer={
             <>
+              {backdropPicker.picker}
               <span className="preview-caption">Spineboy · Spine 4.3</span>
               <button
                 className="small-button"
@@ -79,8 +86,8 @@ export default function SpineSpritePage() {
             </>
           }
         >
-          <LabScene assets={assets}>
-            <Backdrop asset={valley} />
+          <LabScene assets={assets} background={stageColor}>
+            {backdropPicker.scene}
             <AnimationCatalog binary={binary} onAnimations={setAnimations} />
             <SpineSprite
               ref={ref}
@@ -94,7 +101,7 @@ export default function SpineSpritePage() {
           usage={usage}
           setup={[
             { name: "assets.ts", source: sharedAssets },
-            { name: "App.tsx", source: sceneHost({ font: false }) },
+            { name: "App.tsx", source: sceneHost({ ...backdropPicker.host, font: false }) },
           ]}
           reference={spineReference}
           note="Put the JSON or binary skeleton, atlas, and atlas images in public/assets/spineboy. The 4.3 runtime requires matching exports. This wrapper provides the canvas and asset cache."
@@ -126,6 +133,7 @@ export default function SpineSpritePage() {
         specs={specs}
         values={settings}
         onChange={(key, value) => setSettings((previous) => ({ ...previous, [key]: value }))}
+        collapsible
         onReset={() => {
           setSettings(spineDefaults);
           setEvents([]);

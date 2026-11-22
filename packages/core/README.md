@@ -39,10 +39,10 @@ const audioBuffer: Asset<AudioBuffer> = {
 
 ## Scene primitives
 
-- `SceneCanvas`: R3F `Canvas` props plus design `width`, `height`, and `fit: 'contain' | 'cover'`. Defaults to a flat, orthographic, 1280×720 scene with DPR capped at 2. Use the continuous render loop when animating Spine.
-- `Camera2D`: the same camera settings, for an existing Canvas. Installs its camera and restores the previous camera on unmount.
-- `Backdrop`: texture asset, design dimensions, `fit: 'cover' | 'contain' | 'stretch'`, `opacity`, and `z` (default -100). Plane geometry preserves the texture's aspect ratio unless stretched. A containing camera naturally clips cover overflow.
-- `CanvasPanel`: a native scene plane painted with `draw(context, width, height)`, with mesh props, dimensions, and resolution (default 2). Textures dispose on unmount and reuse their canvas between draws. Transparent text uses render ordering above scene content; callers decide pointer semantics.
+- `SceneCanvas`: R3F `Canvas` props plus every `Camera2D` prop and `background` (clear color; omit for a transparent canvas). Defaults to a flat, orthographic, 1280×720 scene with DPR capped at 2. Use the continuous render loop when animating Spine.
+- `Camera2D`: design `width`/`height`, `fit: 'contain' | 'cover'`, `zoom` (multiplies the fitted scale), `center: [x, y]` (pan), and `near`/`far` (0.1/2000; the camera sits midway so z = 0 is visible). Installs its camera and restores the previous camera on unmount.
+- `Backdrop`: texture asset, bounds `width`/`height`, `fit: 'cover' | 'contain' | 'stretch' | 'none'`, `scale`, `align: [x, y]` (-1…1: which part survives a cover crop, or where a contained image sits), `offset: [x, y]`, `opacity`, `tint`, `flipX`/`flipY`, `z` (default -100), and `renderOrder`. `layoutBackdrop(image, options)` is the same math as a pure function. A containing camera naturally clips cover overflow.
+- `CanvasPanel`: a native scene plane painted with `draw(context, width, height)`, with mesh props, dimensions, `resolution` (default 2), `opacity`, `pixelated` (nearest-neighbor sampling), and `depthTest` (false: always on top). Textures dispose on unmount and reuse their canvas between draws; callers decide pointer semantics.
 - `wrapText`, `paginateText`, `graphemes`, `revealStops`: pure layout utilities. Wrapping takes an explicit measurement function, so tests and renderers can use consistent font metrics. A grapheme wider than a whole line is placed intact on its own line.
 
 Font assets are registered with `document.fonts` before preloading finishes. Dialogue uses the same family name for measurement and drawing. Preloading avoids font swaps; dialogue also responds to browser `loadingdone` events.

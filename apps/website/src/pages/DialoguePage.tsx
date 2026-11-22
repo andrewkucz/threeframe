@@ -1,68 +1,105 @@
-import { Backdrop, textureAsset, type Asset } from "@threeframe/core";
-import { DialogueBox, InkStory, type DialogueDisplay, type DialogueHandle } from "@threeframe/ink";
-import { useEffect, useMemo, useRef, useState } from "react";
-import type { Texture } from "three";
-import { speakers, storyFont, tower, valley } from "../demo";
+import {
+  DialogueBox,
+  InkStory,
+  type DialogueDisplay,
+  type DialogueHandle,
+  type DialoguePresetName,
+} from "@threeframe/ink";
+import { useMemo, useRef, useState } from "react";
+import { speakers, storyFont } from "../demo";
+import { useBackdropPicker } from "../docs/BackdropPicker";
 import { Controls } from "../docs/Controls";
+import { dialoguePresets, presetSettings } from "../docs/dialoguePresets";
+import { Presets } from "../docs/Presets";
 import { Disclosure, DocsExample, Preview } from "../docs/DocsExample";
 import { code, componentExample, jsx, sceneHost, sharedAssets } from "../docs/examples";
-import { dialogueControls, dialogueDefaults, dialogueReference } from "../docs/options";
+import {
+  dialogueControls,
+  dialogueControlVisible,
+  dialogueDefaults,
+  dialogueProps,
+  dialogueReference,
+  exportDialoguePreset,
+  parseDialoguePreset,
+  presetMatches,
+  type DialogueSettings,
+} from "../docs/options";
 import { LabScene } from "../LabScene";
 import { Icon } from "../ui";
 
-const builtInBackdrops: Record<string, Asset<Texture>> = { valley, tower };
 const sample =
   "Some stories begin with a grand adventure. This one begins with a light in a window, and the quiet feeling that someone, somewhere, has been waiting for you.\n\nBeyond the mountains, there is a place where every forgotten story finds a home. Perhaps yours belongs there too. Keep going. The road is longer than it looks, but you do not have to walk it alone. 🌙";
 const inkSample =
   "A little light, a long way from home. # speaker:scout\n* [Follow the light.]\n  The journey begins. # speaker:narrator\n  -> END\n* [Stay a while.]\n  There is no hurry. # speaker:keeper\n  -> END";
-const noChoices: typeof exampleChoices = [];
-const exampleChoices = [
-  { index: 0, text: "Follow the little light.", tags: [] },
-  { index: 1, text: "Wait for the morning.", tags: [] },
+const choiceText = [
+  "Follow the little light.",
+  "Wait for the morning.",
+  "Call out into the dark.",
+  "Light a lantern of your own.",
+  "Turn back toward the village.",
+  "Sit with the keeper a while longer.",
 ];
+const choiceSets = {
+  none: [],
+  two: choiceText.slice(0, 2),
+  six: choiceText,
+} satisfies Record<string, string[]>;
+const exampleChoices = Object.fromEntries(
+  Object.entries(choiceSets).map(([key, texts]) => [
+    key,
+    texts.map((choice, index) => ({ index, text: choice, tags: [] as string[] })),
+  ]),
+);
 
 export default function DialoguePage() {
   const ref = useRef<DialogueHandle>(null);
   const [settings, setSettings] = useState(dialogueDefaults);
+  // The preset the current settings started from; tweaks are detected by comparing against it.
+  const [preset, setPreset] = useState<{
+    id: DialoguePresetName | null;
+    name: string;
+    settings: DialogueSettings;
+  }>(() => ({
+    id: "threeframe",
+    name: dialoguePresets[0].name,
+    settings: presetSettings("threeframe"),
+  }));
+  const presetModified = !presetMatches(settings, preset.settings);
+  const loadPreset = (next: typeof preset) => {
+    setPreset(next);
+    // Keep the chosen component, speaker, and choices; a preset sets everything else.
+    setSettings((previous) => ({ ...previous, ...next.settings }));
+  };
+  const stageColor = String(settings.previewBackground);
+  const backdropPicker = useBackdropPicker(stageColor);
   const [text, setText] = useState(sample);
   const [script, setScript] = useState(inkSample);
   const [draft, setDraft] = useState(inkSample);
   const [iteration, setIteration] = useState(0);
   const [message, setMessage] = useState("");
   const [display, setDisplay] = useState<DialogueDisplay | null>(null);
-  const [upload, setUpload] = useState<{ name: string; url: string } | null>(null);
-  useEffect(() => (upload ? () => URL.revokeObjectURL(upload.url) : undefined), [upload]);
-  const uploadAsset = useMemo(() => upload && textureAsset(upload.url), [upload]);
-  const backdrop =
-    settings.backdrop === "custom" ? uploadAsset : builtInBackdrops[settings.backdrop];
+  const backdrop = backdropPicker.asset;
   // Stable per backdrop so LabScene only reloads (and restarts the dialogue) when it changes.
   const assets = useMemo(() => (backdrop ? [backdrop, storyFont] : [storyFont]), [backdrop]);
   const ink = settings.mode === "ink";
-  const presentation = useMemo(
-    () => ({
-      reveal: settings.reveal,
-      speed: settings.speed,
-      allowFastSkip: settings.fastSkip,
-      width: settings.width,
-      height: settings.height,
-      padding: settings.padding,
-      position: [0, -180, 100] as [number, number, number],
-      theme: {
-        fontFamily: "Lora",
-        fontSize: settings.fontSize,
-        background: settings.background,
-        color: settings.color,
-        radius: settings.radius,
-      },
-      speakers,
-    }),
-    [settings],
+  // A built-in preset is passed by name, with only the tweaked values on top: exactly what you
+  // would write by hand. The default preset is the package defaults, so it needs no name.
+  const named = preset.id && preset.id !== "threeframe" ? preset.id : null;
+  const presetProps = useMemo(
+    () =>
+      named
+        ? { preset: named, ...dialogueProps(settings, preset.settings) }
+        : dialogueProps(settings),
+    [named, settings, preset.settings],
   );
-  const choices = settings.choices ? exampleChoices : noChoices;
+  const presentation = useMemo(() => ({ ...presetProps, speakers }), [presetProps]);
+  const choices = exampleChoices[String(settings.choices)] ?? exampleChoices.none;
+  const speaker = settings.speaker ? String(settings.speaker) : null;
   const component = ink ? "InkStory" : "DialogueBox";
+  const codeProps = presetProps;
   const exampleProps = ink
-    ? { source: code("source"), ...presentation }
-    : { text, speaker: settings.speaker, choices, ...presentation };
+    ? { source: code("source"), ...codeProps }
+    : { text, speaker, ...(choices.length ? { choices } : {}), ...codeProps };
   const usage = componentExample(
     `import { ${component} } from "@threeframe/ink";\nimport { speakers } from "./assets";${ink ? '\nimport source from "./story.ink?raw";' : ""}`,
     jsx(component, {
@@ -76,16 +113,10 @@ export default function DialoguePage() {
           }),
     }),
   );
-  const reset = () => {
-    setSettings(dialogueDefaults);
-    setText(sample);
-    setScript(inkSample);
-    setDraft(inkSample);
-    setIteration((value) => value + 1);
-    setMessage("");
-  };
   const specs = dialogueControls.filter(
-    (spec) => !ink || (spec.key !== "speaker" && spec.key !== "choices"),
+    (spec) =>
+      (!ink || (spec.key !== "speaker" && spec.key !== "choices")) &&
+      dialogueControlVisible(spec.key, settings),
   );
   return (
     <div className="docs-layout">
@@ -94,40 +125,7 @@ export default function DialoguePage() {
           label={`${component} preview`}
           footer={
             <>
-              <div className="preview-footer-group">
-                <select
-                  aria-label="Preview backdrop"
-                  value={settings.backdrop}
-                  onChange={(event) =>
-                    setSettings((previous) => ({ ...previous, backdrop: event.target.value }))
-                  }
-                >
-                  <option value="grid">Grid (default)</option>
-                  <option value="valley">valley.svg</option>
-                  <option value="tower">tower.svg</option>
-                  <option value="custom">Upload image…</option>
-                </select>
-                {settings.backdrop === "custom" && (
-                  <>
-                    <label className="small-button file-button">
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="sr-only"
-                        onChange={(event) => {
-                          const file = event.target.files?.[0];
-                          if (file) setUpload({ name: file.name, url: URL.createObjectURL(file) });
-                          event.target.value = "";
-                        }}
-                      />
-                      {upload ? "Change image…" : "Choose image…"}
-                    </label>
-                    <span className="preview-caption">
-                      {upload ? upload.name : "Stays in this browser tab only."}
-                    </span>
-                  </>
-                )}
-              </div>
+              {backdropPicker.picker}
               <span className="sr-only" aria-live="polite">
                 {display?.text}
               </span>
@@ -151,38 +149,19 @@ export default function DialoguePage() {
                   disabled={
                     !display ||
                     Boolean(display.choices.length) ||
-                    (display.printing && !settings.fastSkip)
+                    (display.printing && settings.allowFastSkip === false)
                   }
                   onClick={() => ref.current?.advance()}
                 >
                   {display?.printing ? "Reveal" : "Continue"}
                   <Icon name="arrow" size={14} />
                 </button>
-                {display?.choices.map((choice) => (
-                  <button
-                    className="small-button"
-                    key={choice.index}
-                    onClick={() => ref.current?.choose(choice.index)}
-                  >
-                    {choice.text}
-                  </button>
-                ))}
               </div>
             </>
           }
         >
-          <LabScene assets={assets}>
-            {backdrop ? (
-              <Backdrop asset={backdrop} />
-            ) : (
-              settings.backdrop === "grid" && (
-                <gridHelper
-                  args={[2560, 64, "#4a6472", "#22353f"]}
-                  rotation-x={Math.PI / 2}
-                  position-z={-100}
-                />
-              )
-            )}
+          <LabScene assets={assets} background={stageColor}>
+            {backdropPicker.scene}
             {ink ? (
               <InkStory
                 key={`ink-${iteration}`}
@@ -206,12 +185,14 @@ export default function DialoguePage() {
                 key={`text-${iteration}`}
                 {...presentation}
                 text={text}
-                speaker={settings.speaker}
+                speaker={speaker}
                 choices={choices}
                 ref={ref}
                 onDisplayChange={setDisplay}
                 onAdvance={() => setMessage("Passage complete.")}
-                onChoose={(index) => setMessage(`Selected: ${exampleChoices[index].text}`)}
+                onChoose={(index) =>
+                  setMessage(`Selected: ${choices.find((choice) => choice.index === index)?.text}`)
+                }
               />
             )}
           </LabScene>
@@ -222,14 +203,7 @@ export default function DialoguePage() {
             { name: "assets.ts", source: sharedAssets },
             {
               name: "App.tsx",
-              source: sceneHost({
-                background:
-                  settings.backdrop === "grid"
-                    ? "grid"
-                    : settings.backdrop === "tower"
-                      ? "tower"
-                      : "valley",
-              }),
+              source: sceneHost(backdropPicker.host),
             },
             ...(ink ? [{ name: "story.ink", source: script, language: "ink" as const }] : []),
           ]}
@@ -287,7 +261,40 @@ export default function DialoguePage() {
             setDisplay(null);
           }
         }}
-        onReset={reset}
+        collapsible
+        preface={
+          <Presets
+            presets={dialoguePresets}
+            selected={preset.id}
+            importedName={preset.id === null ? preset.name : null}
+            modified={presetModified}
+            exportText={() =>
+              exportDialoguePreset(
+                settings,
+                presetModified ? `${preset.name} (custom)` : preset.name,
+              )
+            }
+            onSelect={(id) => {
+              const next = dialoguePresets.find((item) => item.id === id);
+              if (next)
+                loadPreset({
+                  id: next.id,
+                  name: next.name,
+                  settings: presetSettings(next.id),
+                });
+            }}
+            onRestore={() => loadPreset(preset)}
+            onImport={(source) => {
+              const result = parseDialoguePreset(source);
+              loadPreset({
+                id: null,
+                name: result.name ?? "Imported preset",
+                settings: result.settings,
+              });
+              return result.warnings;
+            }}
+          />
+        }
       />
     </div>
   );

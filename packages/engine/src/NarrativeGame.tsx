@@ -10,11 +10,14 @@ import {
   InkController,
   InkDialogue,
   InkProvider,
+  mergeDialogueOptions,
+  resolveDialoguePreset,
   useInk,
   type DialogueDisplay,
   type DialogueHandle,
   type DialoguePlayback,
   type InkDialogueProps,
+  type NarrativeChoice,
   type NarrativeEvent,
   type NarrativeSave,
   type Story,
@@ -58,12 +61,69 @@ export interface NarrativeGameHandle {
   save: () => GameSave;
   restore: (save: GameSave) => void;
 }
+/** Every string the player's DOM layer shows. Override any subset, for example to localize. */
+export interface NarrativeGameLabels {
+  continue: string;
+  reveal: string;
+  printing: string;
+  ended: string;
+  playAgain: string;
+  paused: string;
+  keyboardHint: string;
+  /** Transcript name for lines without a speaker. */
+  narrator: string;
+  choice: (choice: NarrativeChoice, number: number) => string;
+  loading: string;
+  loadingProgress: (loaded: number, total: number) => string;
+  loadingProgressLabel: string;
+  error: string;
+  retry: string;
+  webglRequired: string;
+}
+export const defaultNarrativeGameLabels: NarrativeGameLabels = {
+  continue: "Continue",
+  reveal: "Reveal dialogue",
+  printing: "Printing…",
+  ended: "The story has ended.",
+  playAgain: "Play again",
+  paused: "Paused",
+  keyboardHint: "Space to continue · Number keys to choose",
+  narrator: "Narrator",
+  choice: (choice, number) => `${number}. ${choice.text}`,
+  loading: "Preparing your story",
+  loadingProgress: (loaded, total) => `${loaded} / ${total} assets`,
+  loadingProgressLabel: "Loading game assets",
+  error: "Unable to play this story.",
+  retry: "Retry loading",
+  webglRequired: "WebGL is required to render this game.",
+};
+/** DOM parts that accept `classNames` and `styles`. */
+export type NarrativeGameSlot =
+  | "root"
+  | "canvas"
+  | "controls"
+  | "button"
+  | "hint"
+  | "status"
+  | "loading"
+  | "error";
+export interface NarrativeGameKeyboard {
+  /** `KeyboardEvent.code` values that advance. */
+  advance?: readonly string[];
+  /** Number keys 1–9 choose the matching choice. */
+  choiceKeys?: boolean;
+}
+
 export interface NarrativeGameProps {
   definition: GameDefinition;
   store?: AssetStore;
   paused?: boolean;
   scene?: string;
   characterOverrides?: Readonly<Record<string, CharacterOverrides>>;
+  /**
+   * Live dialogue presentation, including `preset`. Layers, lowest first: layout scaled to the
+   * definition's design size, then the preset, then these props.
+   */
   dialogue?: Omit<InkDialogueProps, "controller" | "paused" | "initialPlayback">;
   /** Bind external functions and observers before the first Ink continuation. */
   configureStory?: (story: Story) => void;
@@ -76,8 +136,39 @@ export interface NarrativeGameProps {
   children?: ReactNode;
   className?: string;
   style?: CSSProperties;
-  /** Visible DOM controls plus the native canvas controls. */
+  /** Visible DOM controls plus the native canvas controls. `false` keeps them for screen readers only. */
   controls?: boolean;
+  labels?: Partial<NarrativeGameLabels>;
+  /** Class names per DOM part. */
+  classNames?: Partial<Record<NarrativeGameSlot, string>>;
+  /** Inline styles per DOM part, merged over the built-in look. */
+  styles?: Partial<Record<NarrativeGameSlot, CSSProperties>>;
+  /** Drop the built-in inline styles so `classNames` fully control the DOM parts. */
+  unstyled?: boolean;
+  /** `false` disables keyboard input. */
+  keyboard?: NarrativeGameKeyboard | false;
+}
+
+interface Skin {
+  labels: NarrativeGameLabels;
+  slot: (
+    name: NarrativeGameSlot,
+    base?: CSSProperties,
+  ) => { className?: string; style?: CSSProperties };
+}
+function createSkin(
+  labels: Partial<NarrativeGameLabels> | undefined,
+  classNames: NarrativeGameProps["classNames"],
+  styles: NarrativeGameProps["styles"],
+  unstyled: boolean,
+): Skin {
+  return {
+    labels: { ...defaultNarrativeGameLabels, ...labels },
+    slot: (name, base) => ({
+      className: classNames?.[name],
+      style: unstyled ? styles?.[name] : { ...base, ...styles?.[name] },
+    }),
+  };
 }
 
 class RenderBoundary extends Component<
@@ -125,7 +216,9 @@ function AccessibleControls({
   controls,
   allowFastSkip,
   run,
+  skin,
 }: {
+  skin: Skin;
   controller: InkController;
   dialogue: React.RefObject<DialogueHandle | null>;
   paused: boolean;
@@ -135,58 +228,61 @@ function AccessibleControls({
   run: (action: () => void) => void;
 }) {
   const snapshot = useInk(controller);
+  const { labels, slot } = skin;
+  const button = slot("button", buttonStyle);
+  const container = controls
+    ? slot("controls", {
+        display: "flex",
+        flexWrap: "wrap",
+        gap: 8,
+        alignItems: "center",
+        padding: "10px 14px",
+        background: "#101d26",
+        color: "#d9e4e8",
+        fontSize: 12,
+      })
+    : { style: hidden };
   return (
-    <div
-      style={
-        controls
-          ? {
-              display: "flex",
-              flexWrap: "wrap",
-              gap: 8,
-              alignItems: "center",
-              padding: "10px 14px",
-              background: "#101d26",
-              color: "#d9e4e8",
-              fontSize: 12,
-            }
-          : hidden
-      }
-    >
+    <div {...container}>
       <p aria-live="polite" aria-atomic="true" style={hidden}>
         {snapshot.status === "ended"
-          ? "The story has ended."
-          : `${snapshot.speaker ?? "Narrator"}: ${display?.text ?? snapshot.text}`}
+          ? labels.ended
+          : `${snapshot.speaker ?? labels.narrator}: ${display?.text ?? snapshot.text}`}
       </p>
       {snapshot.status === "ended" ? (
         <>
-          <span>The story has ended.</span>
-          <button style={buttonStyle} onClick={() => run(controller.restart)}>
-            Play again
+          <span {...slot("status")}>{labels.ended}</span>
+          <button {...button} onClick={() => run(controller.restart)}>
+            {labels.playAgain}
           </button>
         </>
       ) : (
         <>
           <button
-            style={buttonStyle}
+            {...button}
             disabled={
               paused || Boolean(display?.choices.length) || (display?.printing && !allowFastSkip)
             }
             onClick={() => run(() => dialogue.current?.advance())}
           >
-            {display?.printing ? (allowFastSkip ? "Reveal dialogue" : "Printing…") : "Continue"}
+            {display?.printing
+              ? allowFastSkip
+                ? labels.reveal
+                : labels.printing
+              : labels.continue}
           </button>
-          {display?.choices.map((choice) => (
+          {display?.choices.map((choice, i) => (
             <button
               key={choice.index}
-              style={buttonStyle}
+              {...button}
               disabled={paused}
               onClick={() => run(() => dialogue.current?.choose(choice.index))}
             >
-              {choice.index + 1}. {choice.text}
+              {labels.choice(choice, i + 1)}
             </button>
           ))}
-          <span style={{ marginLeft: "auto", opacity: 0.6 }}>
-            {paused ? "Paused" : "Space to continue · Number keys to choose"}
+          <span {...slot("hint", { marginLeft: "auto", opacity: 0.6 })}>
+            {paused ? labels.paused : labels.keyboardHint}
           </span>
         </>
       )}
@@ -220,9 +316,20 @@ const GameSession = forwardRef<NarrativeGameHandle, NarrativeGameProps>(function
     className,
     style,
     controls = true,
+    labels: labelOverrides,
+    classNames,
+    styles,
+    unstyled = false,
+    keyboard = {},
   },
   ref,
 ) {
+  const skin = useMemo(
+    () => createSkin(labelOverrides, classNames, styles, unstyled),
+    [labelOverrides, classNames, styles, unstyled],
+  );
+  const advanceKeys = keyboard ? (keyboard.advance ?? ["Space", "Enter"]) : [];
+  const choiceKeys = keyboard ? keyboard.choiceKeys !== false : false;
   const ownedStore = useOwnedAssetStore();
   const store = providedStore ?? ownedStore;
   const progress = useAssetProgress(store);
@@ -359,15 +466,18 @@ const GameSession = forwardRef<NarrativeGameHandle, NarrativeGameProps>(function
   const errorView = useCallback(
     (reason: Error) =>
       renderError?.(reason, retry) ?? (
-        <div role="alert" style={{ padding: 36, color: "#f4d1c6", background: "#241b1a" }}>
-          <p>Unable to play this story.</p>
+        <div
+          role="alert"
+          {...skin.slot("error", { padding: 36, color: "#f4d1c6", background: "#241b1a" })}
+        >
+          <p>{skin.labels.error}</p>
           <pre style={{ whiteSpace: "pre-wrap" }}>{reason.message}</pre>
-          <button style={buttonStyle} onClick={retry}>
-            Retry loading
+          <button {...skin.slot("button", buttonStyle)} onClick={retry}>
+            {skin.labels.retry}
           </button>
         </div>
       ),
-    [renderError, retry],
+    [renderError, retry, skin],
   );
   const canvasStyle = useMemo<CSSProperties>(
     () => ({
@@ -379,8 +489,8 @@ const GameSession = forwardRef<NarrativeGameHandle, NarrativeGameProps>(function
 
   return (
     <div
-      className={className}
-      style={{ position: "relative", ...style }}
+      className={[className, classNames?.root].filter(Boolean).join(" ") || undefined}
+      style={{ position: "relative", ...styles?.root, ...style }}
       tabIndex={0}
       role="region"
       aria-label={definition.title}
@@ -392,10 +502,10 @@ const GameSession = forwardRef<NarrativeGameHandle, NarrativeGameProps>(function
           target.closest("button, input, textarea, select, [contenteditable=true]")
         )
           return;
-        if (event.code === "Space" || event.code === "Enter") {
+        if (advanceKeys.includes(event.code)) {
           event.preventDefault();
           run(() => dialogue.current?.advance());
-        } else if (/^[1-9]$/.test(event.key)) {
+        } else if (choiceKeys && /^[1-9]$/.test(event.key)) {
           event.preventDefault();
           run(() => dialogue.current?.choose(Number(event.key) - 1));
         }
@@ -407,7 +517,7 @@ const GameSession = forwardRef<NarrativeGameHandle, NarrativeGameProps>(function
         (renderLoading?.(progress) ?? (
           <div
             role="status"
-            style={{
+            {...skin.slot("loading", {
               ...canvasStyle,
               display: "grid",
               placeContent: "center",
@@ -415,17 +525,15 @@ const GameSession = forwardRef<NarrativeGameHandle, NarrativeGameProps>(function
               background: "#13232e",
               color: "#f3eee2",
               textAlign: "center",
-            }}
+            })}
           >
-            <span>Preparing your story</span>
+            <span>{skin.labels.loading}</span>
             <progress
-              aria-label="Loading game assets"
+              aria-label={skin.labels.loadingProgressLabel}
               value={progress.loaded}
               max={Math.max(1, progress.total)}
             />
-            <small>
-              {progress.loaded} / {progress.total} assets
-            </small>
+            <small>{skin.labels.loadingProgress(progress.loaded, progress.total)}</small>
           </div>
         ))
       ) : (
@@ -434,7 +542,7 @@ const GameSession = forwardRef<NarrativeGameHandle, NarrativeGameProps>(function
             <InkProvider controller={controller} autoStart={false} onEvent={handleEvent}>
               <StartStory controller={controller} run={run} />
               <div
-                style={canvasStyle}
+                {...skin.slot("canvas", canvasStyle)}
                 onPointerDown={(event) =>
                   event.currentTarget.parentElement?.focus({ preventScroll: true })
                 }
@@ -442,7 +550,7 @@ const GameSession = forwardRef<NarrativeGameHandle, NarrativeGameProps>(function
                 <SceneCanvas
                   width={definition.width}
                   height={definition.height}
-                  fallback={<div role="alert">WebGL is required to render this game.</div>}
+                  fallback={<div role="alert">{skin.labels.webglRequired}</div>}
                 >
                   <Suspense fallback={null}>
                     <GameStage
@@ -473,8 +581,13 @@ const GameSession = forwardRef<NarrativeGameHandle, NarrativeGameProps>(function
                 paused={paused}
                 display={display}
                 controls={controls}
-                allowFastSkip={dialogueProps?.allowFastSkip ?? true}
+                allowFastSkip={
+                  dialogueProps?.allowFastSkip ??
+                  resolveDialoguePreset(dialogueProps?.preset).allowFastSkip ??
+                  true
+                }
                 run={run}
+                skin={skin}
               />
             </InkProvider>
           </AssetProvider>
@@ -525,13 +638,22 @@ function GameDialogue({
   designHeight: number;
 }) {
   const snapshot = useInk(controller);
+  const { preset, ...own } = props ?? {};
+  type Options = NonNullable<NarrativeGameProps["dialogue"]>;
+  // Layout scales with the design size, but a preset's geometry and explicit props win over it.
+  const options = mergeDialogueOptions<Options>(
+    {
+      width: designWidth * 0.875,
+      height: designHeight * 0.292,
+      padding: (designWidth * 28) / 1280,
+      position: [0, -designHeight * 0.306, 100],
+    },
+    resolveDialoguePreset(preset) as Options,
+    own,
+  );
   return (
     <InkDialogue
-      width={designWidth * 0.875}
-      height={designHeight * 0.292}
-      padding={(designWidth * 30) / 1280}
-      position={[0, -designHeight * 0.306, 100]}
-      {...props}
+      {...options}
       ref={dialogueRef}
       paused={paused}
       initialPlayback={resume?.lineId === snapshot.lineId ? resume.playback : undefined}

@@ -17,10 +17,11 @@ export const spineboyBinary = spineAsset({
   atlas: "/assets/spineboy/spineboy.atlas",
   format: "binary",
 });
+// Only the keeper sets its own accent; the others follow the theme (and any preset).
 export const speakers = {
-  scout: { name: "The traveler", color: "#eabd78" },
+  scout: { name: "The traveler" },
   keeper: { name: "The keeper", color: "#99d2c4" },
-  narrator: { name: "The valley", color: "#a4bbcb" },
+  narrator: { name: "The valley" },
 };
 export function createDemo(story = source): GameDefinition {
   return {

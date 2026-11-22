@@ -25,9 +25,14 @@ Each `SpineSprite` has its own skeleton, animation state, listeners, and mesh ge
 
 Props react to changes:
 
-- `animation`, `loop` (true), `mixDuration` (0.2 seconds).
+- `animation`, `loop` (true): the base animation on track 0.
+- `queue`: `{ animation, loop?, delay? }[]` played after the base animation, in order.
+- `tracks`: `{ animation, loop?, alpha?, timeScale? }[]` blended above the base on tracks 1, 2, … (an aim or blink overlay).
+- `mixDuration` (0.2 seconds) and `mixes`: `[from, to, seconds][]` per-transition blend times.
 - `paused` (false), `timeScale` (1); animation advances in `useFrame`, with frame deltas capped at 0.1 seconds to prevent large background-tab jumps.
-- `skin`, `flipX`, `tint` (hex color), `opacity`.
+- `skin`: one name, or several combined in order into one skin for mix-and-match outfits.
+- `flipX`, `flipY`, `tint` (hex color), `opacity`.
+- `material`: `alphaTest` (0.001), `depthTest` (true), `depthWrite` (false), `toneMapped` (false), `twoColorTint` (true). Changing it rebuilds the mesh.
 - Standard R3F group props: position, scale, rotation, visibility, pointer events, etc.
 - `listener`: official Spine animation callbacks (`start`, `complete`, `event`, `interrupt`, `end`, `dispose`). Callback identity changes do not restart animations.
 - `onReady(handle)` and a ref exposing `mesh`, `play`, `queue`, and `clear`.
@@ -39,7 +44,7 @@ sprite.current?.play("shoot", false, 1); // independent overlay track
 sprite.current?.clear(1, 0.2); // mix overlay out
 ```
 
-Declarative `animation` changes override track 0. An imperative animation persists until the relevant declarative props change. Other tracks are available through the handle or the raw mesh/state. Removing the `animation` prop resets to the setup pose. Invalid animation/skin names are reported by the runtime; wrap standalone scenes in an error boundary.
+Declarative `animation`/`queue` changes override track 0, and `tracks` own tracks 1…n. An imperative animation persists until the relevant declarative props change. Higher tracks remain available through the handle or the raw mesh/state. Removing the `animation` prop resets to the setup pose. Invalid animation/skin names are reported by the runtime; wrap standalone scenes in an error boundary.
 
 Three 0.184 is pinned as the shared peer because the installed Spine runtime declares `<0.185`. The material is unlit and preserves the runtime's atlas blending parameters. This wrapper uses ordinary R3F mesh hit testing; it does not expose per-slot hit regions.
 

@@ -28,11 +28,14 @@ export function LabScene({
   children,
   fit = "contain",
   scenePreview = false,
+  background,
 }: {
   assets: readonly Asset<any>[];
   children: ReactNode;
   fit?: Camera2DProps["fit"];
   scenePreview?: boolean;
+  /** CSS color behind the transparent scene canvas. */
+  background?: string;
 }) {
   const store = useOwnedAssetStore();
   const progress = useAssetProgress(store);
@@ -55,7 +58,10 @@ export function LabScene({
     };
   }, [assets, store]);
   return (
-    <div className={`lab-canvas${scenePreview ? " scene-preview" : ""}`}>
+    <div
+      className={`lab-canvas${scenePreview ? " scene-preview" : ""}`}
+      style={background ? { background } : undefined}
+    >
       {error ? (
         <p role="alert" className="notice">
           {error}

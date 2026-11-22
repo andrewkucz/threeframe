@@ -15,39 +15,39 @@ import {
   useState,
 } from "react";
 import type { InkController, NarrativeChoice } from "./controller";
+import {
+  alignStart,
+  defaultDialogueLabels,
+  fontShorthand,
+  formatChoiceMarker,
+  layoutChoiceMenu,
+  layoutPanel,
+  mergeDefined,
+  resolveDialogueStyle,
+  transformText,
+  type DialogueBodyOptions,
+  type DialogueChoiceMenuOptions,
+  type DialogueLabels,
+  type DialogueNameplateOptions,
+  type DialoguePadding,
+  type DialoguePageCounterOptions,
+  type DialoguePromptOptions,
+  type DialogueSurfaceStyle,
+  type DialogueTheme,
+  type MenuRect,
+  type ResolvedChoiceMenu,
+  type ResolvedSurface,
+  type ResolvedText,
+  type SpeakerStyle,
+} from "./dialogueStyle";
+import {
+  mergeDialogueOptions,
+  resolveDialoguePreset,
+  type DialoguePreset,
+  type DialoguePresetName,
+} from "./presets";
 import { useInk, useInkController } from "./react";
 
-export interface SpeakerStyle {
-  name?: string;
-  color?: string;
-  font?: string;
-}
-export interface DialogueTheme {
-  background: string;
-  border: string;
-  color: string;
-  muted: string;
-  accent: string;
-  fontFamily: string;
-  fontSize: number;
-  lineHeight: number;
-  radius: number;
-  choiceBackground: string;
-  choiceHover: string;
-}
-export const defaultDialogueTheme: DialogueTheme = {
-  background: "rgba(15, 24, 33, 0.96)",
-  border: "#50606b",
-  color: "#f3eee2",
-  muted: "#abb7be",
-  accent: "#eabd78",
-  fontFamily: "Georgia, serif",
-  fontSize: 25,
-  lineHeight: 1.5,
-  radius: 14,
-  choiceBackground: "#182d3a",
-  choiceHover: "#2b4756",
-};
 export interface DialoguePlayback {
   page: number;
   revealed: number;
@@ -66,74 +66,172 @@ export interface DialogueHandle {
   save: () => DialoguePlayback;
 }
 export interface DialogueBoxProps {
+  /**
+   * A built-in preset name or a custom preset object. It sits beneath every other prop: explicit
+   * props deep-merge over it, so you can tweak any part of a preset.
+   */
+  preset?: DialoguePresetName | DialoguePreset;
+
+  /* Content */
   text: string;
   speaker?: string | null;
   speakers?: Readonly<Record<string, SpeakerStyle>>;
   choices?: readonly NarrativeChoice[];
-  /** Bounds large decision trees; the native panel provides next/previous controls. */
-  choicesPerPage?: number;
-  width?: number;
-  height?: number;
-  padding?: number;
-  position?: [number, number, number];
-  theme?: Partial<DialogueTheme>;
+
+  /* Playback */
+  reveal?: RevealMode;
   /** Units per second, interpreted according to reveal mode. Zero reveals instantly. */
   speed?: number;
-  reveal?: RevealMode;
   allowFastSkip?: boolean;
   paused?: boolean;
   initialPlayback?: DialoguePlayback;
+
+  /* Geometry */
+  position?: readonly [x: number, y: number, z: number];
+  width?: number;
+  height?: number;
+  padding?: DialoguePadding;
+  /** Canvas pixels per scene unit for every dialogue texture. */
+  resolution?: number;
+
+  /* Appearance: shared tokens, then one prop per visual part. `false` hides a part. */
+  theme?: Partial<DialogueTheme>;
+  panel?: DialogueSurfaceStyle | false;
+  body?: DialogueBodyOptions;
+  nameplate?: DialogueNameplateOptions | false;
+  prompt?: DialoguePromptOptions | false;
+  pageCounter?: DialoguePageCounterOptions | false;
+  choiceMenu?: DialogueChoiceMenuOptions | false;
+  labels?: Partial<DialogueLabels>;
+
+  /* Events */
   onAdvance?: () => void;
   onChoose?: (index: number) => void;
   onDisplayChange?: (display: DialogueDisplay) => void;
   onPrintComplete?: () => void;
 }
 const NO_CHOICES: readonly NarrativeChoice[] = [];
+const DEFAULT_POSITION = [0, -220, 100] as const;
+const DEFAULT_PADDING: DialoguePadding = [24, 30];
+
+let measureContext: CanvasRenderingContext2D | null = null;
+function applyText(context: CanvasRenderingContext2D, style: ResolvedText) {
+  context.font = fontShorthand(style);
+  // Older engines without canvas letter spacing simply ignore the setting.
+  if ("letterSpacing" in context) context.letterSpacing = `${style.letterSpacing}px`;
+}
+const capHeights = new Map<string, number>();
+/**
+ * Draws one line of text whose cap height is centered on `centerY`. Canvas's "middle" baseline
+ * centers the em box instead, which sits visibly off-center by an amount that varies per font.
+ */
+function fillCentered(
+  context: CanvasRenderingContext2D,
+  value: string,
+  x: number,
+  centerY: number,
+) {
+  let capHeight = capHeights.get(context.font);
+  if (capHeight === undefined) {
+    context.textBaseline = "alphabetic";
+    capHeight = context.measureText("H").actualBoundingBoxAscent;
+    capHeights.set(context.font, capHeight);
+  }
+  context.textBaseline = "alphabetic";
+  context.fillText(value, x, centerY + capHeight / 2);
+}
+/** Returns a measure function for `style`. Use it before creating another measurer. */
+function measurer(style: ResolvedText) {
+  measureContext ??= document.createElement("canvas").getContext("2d");
+  const context = measureContext;
+  if (!context) throw new Error("Canvas 2D is unavailable.");
+  applyText(context, style);
+  return (value: string) => context.measureText(value).width;
+}
+function drawSurface(
+  context: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  surface: ResolvedSurface,
+) {
+  const border = Math.max(0, surface.borderWidth);
+  const inner = [width - border, height - border];
+  context.beginPath();
+  context.roundRect(
+    border / 2,
+    border / 2,
+    inner[0],
+    inner[1],
+    Math.max(0, Math.min(surface.radius, inner[0] / 2, inner[1] / 2)),
+  );
+  context.fillStyle = surface.background;
+  context.fill();
+  if (border > 0) {
+    context.lineWidth = border;
+    context.strokeStyle = surface.borderColor;
+    context.stroke();
+  }
+}
+/** Keeps object props referentially stable while their serializable content is unchanged. */
+function useStable<T>(value: T): T {
+  const key = JSON.stringify(value) ?? "";
+  const cache = useRef({ key, value });
+  if (cache.current.key !== key) cache.current = { key, value };
+  return cache.current.value;
+}
 
 function ChoicePanel({
-  text,
   index,
-  y,
-  width,
-  height,
-  theme,
-  padding,
+  lines,
+  marker,
+  markerColumn,
+  rect,
+  menu,
+  resolution,
   onChoose,
 }: {
-  text: string;
   index: number;
-  y: number;
-  width: number;
-  height: number;
-  theme: DialogueTheme;
-  padding: number;
+  lines: readonly string[];
+  marker: string | null;
+  markerColumn: number;
+  rect: MenuRect;
+  menu: ResolvedChoiceMenu;
+  resolution: number;
   onChoose: (index: number) => void;
 }) {
   const [hover, setHover] = useState(false);
   const draw = useCallback(
     (ctx: CanvasRenderingContext2D, w: number, h: number) => {
-      ctx.fillStyle = hover ? theme.choiceHover : theme.choiceBackground;
-      ctx.strokeStyle = hover ? theme.accent : theme.border;
-      ctx.beginPath();
-      ctx.roundRect(1, 1, w - 2, h - 2, Math.min(10, theme.radius));
-      ctx.fill();
-      ctx.stroke();
-      ctx.fillStyle = theme.accent;
-      ctx.font = `600 16px system-ui`;
-      ctx.fillText(String(index + 1).padStart(2, "0"), padding, 30);
-      ctx.font = `${theme.fontSize * 0.85}px ${theme.fontFamily}`;
-      ctx.fillStyle = theme.color;
-      wrapText(text, w - padding * 2 - 40, (value) => ctx.measureText(value).width).forEach(
-        (line, i) => ctx.fillText(line, padding + 40, 29 + i * theme.fontSize * 1.15),
+      const { padding } = menu;
+      drawSurface(ctx, w, h, hover ? menu.hover.surface : menu.surface);
+      const lineHeight = menu.fontSize * menu.lineHeight;
+      const top = padding.top + (h - padding.top - padding.bottom - lines.length * lineHeight) / 2;
+      if (marker && menu.marker) {
+        applyText(ctx, menu.marker);
+        ctx.fillStyle = hover ? menu.hover.markerColor : menu.marker.color;
+        fillCentered(ctx, marker, padding.left, top + lineHeight / 2);
+      }
+      applyText(ctx, menu);
+      ctx.fillStyle = hover ? menu.hover.color : menu.color;
+      const left = padding.left + markerColumn;
+      const width = w - left - padding.right;
+      lines.forEach((line, i) =>
+        fillCentered(
+          ctx,
+          line,
+          alignStart(menu.textAlign, left, width, ctx.measureText(line).width),
+          top + (i + 0.5) * lineHeight,
+        ),
       );
     },
-    [hover, theme, padding, text, index],
+    [hover, menu, lines, marker, markerColumn],
   );
   return (
     <CanvasPanel
-      width={width}
-      height={height}
-      position={[0, y, 1]}
+      width={rect.width}
+      height={rect.height}
+      resolution={resolution}
+      position={[rect.x, rect.y, 1]}
       renderOrder={101}
       draw={draw}
       onPointerOver={(event) => {
@@ -150,315 +248,451 @@ function ChoicePanel({
 }
 
 export const DialogueBox = forwardRef<DialogueHandle, DialogueBoxProps>(function DialogueBox(
-  {
-    text,
-    speaker,
-    speakers,
-    choices = NO_CHOICES,
-    choicesPerPage = 3,
-    width = 1120,
-    height = 210,
-    padding = 30,
-    position = [0, -220, 100],
-    theme: customTheme,
-    speed = 36,
-    reveal = "character",
-    allowFastSkip = true,
-    paused = false,
-    initialPlayback,
-    onAdvance,
-    onChoose,
-    onDisplayChange,
-    onPrintComplete,
-  },
+  { preset, ...props },
   ref,
 ) {
-  const theme = useMemo(() => ({ ...defaultDialogueTheme, ...customTheme }), [customTheme]);
-  const safeWidth = Math.max(180, width);
-  const safeHeight = Math.max(120, height);
-  const safePadding = Math.max(0, Math.min(padding, (safeWidth - 120) / 2, (safeHeight - 80) / 2));
-  const fontSize = Math.max(8, Math.min(80, theme.fontSize));
-  const lineHeight = fontSize * Math.max(1, theme.lineHeight);
-  const [fontRevision, setFontRevision] = useState(0);
-  useEffect(() => {
-    const update = () => setFontRevision((value) => value + 1);
-    document.fonts.addEventListener("loadingdone", update);
-    return () => document.fonts.removeEventListener("loadingdone", update);
-  }, []);
-  const pages = useMemo(() => {
-    const context = document.createElement("canvas").getContext("2d")!;
-    context.font = `${fontSize}px ${theme.fontFamily}`;
-    return paginateText(
-      wrapText(text, safeWidth - safePadding * 2, (value) => context.measureText(value).width),
-      Math.max(1, Math.floor((safeHeight - safePadding * 2 - 49) / lineHeight)),
-    );
-  }, [
-    text,
-    safeWidth,
-    safeHeight,
-    safePadding,
-    fontSize,
-    theme.fontFamily,
-    lineHeight,
-    fontRevision,
-  ]);
-  const layout = `${safeWidth}:${safeHeight}:${safePadding}:${fontSize}:${lineHeight}:${theme.fontFamily}:${fontRevision}`;
-  const [playback, setPlayback] = useState(() => ({
-    source: text,
-    layout,
-    page: initialPlayback?.page ?? 0,
-    revealed: initialPlayback?.revealed ?? 0,
-  }));
-  const page =
-    playback.source === text && playback.layout === layout
-      ? Math.max(0, Math.min(pages.length - 1, Math.floor(playback.page)))
-      : 0;
-  const pageText = pages[page];
-  const stops = useMemo(() => revealStops(pageText, reveal), [pageText, reveal]);
-  const instant = reveal === "instant" || speed <= 0;
-  const revealed =
-    playback.source === text && playback.layout === layout ? Math.max(0, playback.revealed) : 0;
-  const visibleCount = instant ? pageText.length : Math.min(pageText.length, revealed);
-  const printing = visibleCount < pageText.length;
-  const choiceReady = !printing && page === pages.length - 1;
-  const shownChoices = choiceReady ? choices : NO_CHOICES;
-  const [choicePage, setChoicePage] = useState(0);
-  const pageSize = Math.max(1, Math.floor(choicesPerPage));
-  const choicePageCount = Math.max(1, Math.ceil(shownChoices.length / pageSize));
-  const currentChoicePage = Math.min(choicePage, choicePageCount - 1);
-  const visibleChoices = useMemo(
-    () => shownChoices.slice(currentChoicePage * pageSize, (currentChoicePage + 1) * pageSize),
-    [shownChoices, currentChoicePage, pageSize],
-  );
-  const latest = useRef({ onAdvance, onChoose, onDisplayChange, onPrintComplete });
-  latest.current = { onAdvance, onChoose, onDisplayChange, onPrintComplete };
+  type Own = Omit<DialogueBoxProps, "preset">;
+  const merged = preset
+    ? mergeDialogueOptions<Own>(resolveDialoguePreset(preset) as Own, props)
+    : props;
+  return <DialogueRenderer {...merged} ref={ref} />;
+});
 
-  useEffect(() => {
-    if (paused || instant || !printing) return;
-    let last = performance.now();
-    let remainder = 0;
-    const timer = window.setInterval(() => {
-      const now = performance.now();
-      remainder += (Math.min(now - last, 100) * Math.max(0, speed)) / 1000;
-      last = now;
-      const step = Math.floor(remainder);
-      if (step < 1) return;
-      remainder -= step;
-      setPlayback((previous) => {
-        const current =
-          previous.source === text && previous.layout === layout && previous.page === page
-            ? previous.revealed
-            : 0;
-        const next = stops.findIndex((stop) => stop > current);
+const DialogueRenderer = forwardRef<DialogueHandle, Omit<DialogueBoxProps, "preset">>(
+  function DialogueRenderer(
+    {
+      text,
+      speaker,
+      speakers,
+      choices = NO_CHOICES,
+      reveal = "character",
+      speed = 36,
+      allowFastSkip = true,
+      paused = false,
+      initialPlayback,
+      position = DEFAULT_POSITION,
+      width = 1120,
+      height = 210,
+      padding: paddingProp = DEFAULT_PADDING,
+      resolution = 2,
+      theme,
+      panel,
+      body,
+      nameplate,
+      prompt,
+      pageCounter,
+      choiceMenu,
+      labels: labelOverrides,
+      onAdvance,
+      onChoose,
+      onDisplayChange,
+      onPrintComplete,
+    },
+    ref,
+  ) {
+    const speakerStyle = speaker ? speakers?.[speaker] : undefined;
+    const styleInput = useStable({
+      theme,
+      panel,
+      body,
+      nameplate,
+      prompt,
+      pageCounter,
+      choiceMenu,
+      speaker: speakerStyle,
+    });
+    const style = useMemo(() => resolveDialogueStyle(styleInput), [styleInput]);
+    const padding = useStable(paddingProp);
+    const labels = mergeDefined(defaultDialogueLabels, labelOverrides);
+    const panelWidth = Math.max(1, width);
+    const panelHeight = Math.max(1, height);
+
+    const speakerName = speakerStyle?.name ?? speaker ?? labels.narrator;
+    const nameText =
+      style.nameplate && speakerName
+        ? transformText(speakerName, style.nameplate.textTransform)
+        : null;
+    const layout = useMemo(
+      () =>
+        layoutPanel(style, {
+          width: panelWidth,
+          height: panelHeight,
+          padding,
+          hasName: Boolean(nameText),
+        }),
+      [style, panelWidth, panelHeight, padding, nameText],
+    );
+
+    const [fontRevision, setFontRevision] = useState(0);
+    useEffect(() => {
+      const update = () => setFontRevision((value) => value + 1);
+      document.fonts.addEventListener("loadingdone", update);
+      return () => document.fonts.removeEventListener("loadingdone", update);
+    }, []);
+
+    const source = transformText(text, style.body.textTransform);
+    const bodyFont = `${fontShorthand(style.body)}|${style.body.letterSpacing}`;
+    const pages = useMemo(
+      () =>
+        paginateText(wrapText(source, layout.bodyWidth, measurer(style.body)), layout.linesPerPage),
+      // `bodyFont` and `fontRevision` capture every metric the measurer depends on.
+      [source, layout.bodyWidth, layout.linesPerPage, bodyFont, fontRevision],
+    );
+    const layoutKey = `${layout.bodyWidth}:${layout.linesPerPage}:${bodyFont}:${fontRevision}`;
+    const [playback, setPlayback] = useState(() => ({
+      source,
+      layout: layoutKey,
+      page: initialPlayback?.page ?? 0,
+      revealed: initialPlayback?.revealed ?? 0,
+    }));
+    const current = playback.source === source && playback.layout === layoutKey;
+    const page = current ? Math.max(0, Math.min(pages.length - 1, Math.floor(playback.page))) : 0;
+    const pageText = pages[page];
+    const stops = useMemo(() => revealStops(pageText, reveal), [pageText, reveal]);
+    const instant = reveal === "instant" || speed <= 0;
+    const revealed = current ? Math.max(0, playback.revealed) : 0;
+    const visibleCount = instant ? pageText.length : Math.min(pageText.length, revealed);
+    const printing = visibleCount < pageText.length;
+    const choiceReady = !printing && page === pages.length - 1;
+    const shownChoices = choiceReady ? choices : NO_CHOICES;
+    const latest = useRef({ onAdvance, onChoose, onDisplayChange, onPrintComplete });
+    latest.current = { onAdvance, onChoose, onDisplayChange, onPrintComplete };
+
+    useEffect(() => {
+      if (paused || instant || !printing) return;
+      let last = performance.now();
+      let remainder = 0;
+      const timer = window.setInterval(() => {
+        const now = performance.now();
+        remainder += (Math.min(now - last, 100) * Math.max(0, speed)) / 1000;
+        last = now;
+        const step = Math.floor(remainder);
+        if (step < 1) return;
+        remainder -= step;
+        setPlayback((previous) => {
+          const shown =
+            previous.source === source && previous.layout === layoutKey && previous.page === page
+              ? previous.revealed
+              : 0;
+          const next = stops.findIndex((stop) => stop > shown);
+          return {
+            source,
+            layout: layoutKey,
+            page,
+            revealed:
+              next < 0 ? pageText.length : stops[Math.min(stops.length - 1, next + step - 1)],
+          };
+        });
+      }, 16);
+      return () => window.clearInterval(timer);
+    }, [source, layoutKey, page, pageText, stops, speed, paused, instant, printing]);
+
+    useEffect(() => {
+      latest.current.onDisplayChange?.({
+        text: pageText,
+        page,
+        pageCount: pages.length,
+        printing,
+        choices: shownChoices,
+      });
+    }, [pageText, page, pages.length, printing, shownChoices]);
+    const completedPage = useRef<string | null>(null);
+    useEffect(() => {
+      const key = `${source}:${page}:${pageText}`;
+      if (!printing && completedPage.current !== key) {
+        completedPage.current = key;
+        latest.current.onPrintComplete?.();
+      }
+    }, [source, page, pageText, printing]);
+
+    const skip = useCallback(() => {
+      if (allowFastSkip && !paused)
+        setPlayback({ source, layout: layoutKey, page, revealed: pageText.length });
+    }, [allowFastSkip, paused, source, layoutKey, page, pageText]);
+    const advance = useCallback(() => {
+      if (paused) return;
+      if (printing) {
+        skip();
+        return;
+      }
+      if (page < pages.length - 1)
+        setPlayback({ source, layout: layoutKey, page: page + 1, revealed: 0 });
+      else if (!choices.length) latest.current.onAdvance?.();
+    }, [paused, printing, skip, page, pages.length, source, layoutKey, choices.length]);
+    const choose = useCallback(
+      (index: number) => {
+        if (!paused && choiceReady && choices.some((choice) => choice.index === index))
+          latest.current.onChoose?.(index);
+      },
+      [paused, choiceReady, choices],
+    );
+    useImperativeHandle(
+      ref,
+      () => ({ advance, skip, choose, save: () => ({ page, revealed: visibleCount }) }),
+      [advance, skip, choose, page, visibleCount],
+    );
+
+    const hint = paused
+      ? labels.paused
+      : printing
+        ? allowFastSkip
+          ? labels.reveal
+          : labels.printing
+        : page < pages.length - 1
+          ? labels.nextPage
+          : choices.length
+            ? labels.choose
+            : labels.continue;
+    const promptText = style.prompt && hint ? transformText(hint, style.prompt.textTransform) : "";
+    const counterText =
+      style.pageCounter && (pages.length > 1 || style.pageCounter.showWhenSinglePage)
+        ? transformText(labels.page(page + 1, pages.length), style.pageCounter.textTransform)
+        : "";
+
+    const draw = useCallback(
+      (ctx: CanvasRenderingContext2D, w: number, h: number) => {
+        if (style.panel) drawSurface(ctx, w, h, style.panel);
+        const { bodyLeft: left, bodyWidth: area } = layout;
+        if (style.nameplate && nameText && layout.nameplateY !== null) {
+          applyText(ctx, style.nameplate);
+          ctx.fillStyle = style.nameplate.color;
+          const x = alignStart(style.nameplate.align, left, area, ctx.measureText(nameText).width);
+          fillCentered(ctx, nameText, x, layout.nameplateY);
+        }
+        applyText(ctx, style.body);
+        ctx.fillStyle = style.body.color;
+        const fullLines = pageText.split("\n");
+        pageText
+          .slice(0, visibleCount)
+          .split("\n")
+          .forEach((line, i) => {
+            // Align by the full line so centered or end-aligned text does not drift while printing.
+            const x = alignStart(
+              style.body.textAlign,
+              left,
+              area,
+              ctx.measureText(fullLines[i]).width,
+            );
+            fillCentered(ctx, line, x, layout.bodyTop + (i + 0.5) * layout.bodyLineHeight);
+          });
+        for (const [part, value] of [
+          [style.prompt, promptText],
+          [style.pageCounter, counterText],
+        ] as const) {
+          if (!part || !value || layout.footerY === null) continue;
+          applyText(ctx, part);
+          ctx.fillStyle = part.color;
+          fillCentered(
+            ctx,
+            value,
+            alignStart(part.align, left, area, ctx.measureText(value).width),
+            layout.footerY,
+          );
+        }
+      },
+      [style, layout, nameText, pageText, visibleCount, promptText, counterText],
+    );
+
+    const badge = useMemo(() => {
+      const plate = style.nameplate;
+      if (!plate || plate.placement === "inside" || !nameText) return null;
+      const textWidth = measurer(plate)(nameText);
+      const textHeight = plate.fontSize * plate.lineHeight;
+      const badgeWidth = textWidth + plate.padding.left + plate.padding.right;
+      const badgeHeight = textHeight + plate.padding.top + plate.padding.bottom;
+      const { left, right } = layout.padding;
+      const x =
+        (plate.align === "center"
+          ? 0
+          : plate.align === "end"
+            ? panelWidth / 2 - right - badgeWidth / 2
+            : -panelWidth / 2 + left + badgeWidth / 2) + plate.offset[0];
+      const rise = plate.placement === "border" ? 0 : plate.gap + badgeHeight / 2;
+      const y = panelHeight / 2 + rise + plate.offset[1];
+      return {
+        x,
+        y,
+        width: badgeWidth,
+        height: badgeHeight,
+        // How far the badge extends above the panel, so a menu stacked above can clear it.
+        protrusion: Math.max(0, y + badgeHeight / 2 - panelHeight / 2),
+      };
+    }, [style.nameplate, nameText, layout.padding, panelWidth, panelHeight, fontRevision]);
+    const drawBadge = useCallback(
+      (ctx: CanvasRenderingContext2D, w: number, h: number) => {
+        const plate = style.nameplate;
+        if (!plate || !nameText) return;
+        drawSurface(ctx, w, h, plate.surface);
+        applyText(ctx, plate);
+        ctx.fillStyle = plate.color;
+        fillCentered(
+          ctx,
+          nameText,
+          plate.padding.left,
+          plate.padding.top + (plate.fontSize * plate.lineHeight) / 2,
+        );
+      },
+      [style.nameplate, nameText],
+    );
+
+    const menu = style.choiceMenu;
+    const [choicePage, setChoicePage] = useState(0);
+    const choicePageCount = menu ? Math.max(1, Math.ceil(shownChoices.length / menu.perPage)) : 1;
+    const currentChoicePage = Math.min(choicePage, choicePageCount - 1);
+    const markerFormat = labels.choiceMarker;
+    const markers = useMemo(
+      () =>
+        menu && menu.marker
+          ? shownChoices.map((choice, i) =>
+              transformText(
+                formatChoiceMarker(markerFormat, i + 1, choice),
+                menu.marker ? menu.marker.textTransform : "none",
+              ),
+            )
+          : null,
+      [menu, shownChoices, markerFormat],
+    );
+    const menuLayout = useMemo(() => {
+      if (!menu || !shownChoices.length) return null;
+      let markerColumn = 0;
+      if (menu.marker && markers) {
+        const measureMarker = measurer(menu.marker);
+        markerColumn =
+          (menu.marker.width ?? Math.max(0, ...markers.map(measureMarker))) + menu.marker.gap;
+      }
+      const start = currentChoicePage * menu.perPage;
+      const visible = shownChoices.slice(start, start + menu.perPage);
+      const pagerHeight = menu.pager && choicePageCount > 1 ? menu.pager.height : null;
+      const base = {
+        panelWidth,
+        panelHeight,
+        panelY: position[1],
+        menu,
+        pagerHeight,
+        clearance: { above: badge?.protrusion ?? 0, below: 0 },
+      };
+      const { itemWidth } = layoutChoiceMenu({ ...base, itemHeights: [] });
+      const textWidth = Math.max(
+        1,
+        itemWidth - menu.padding.left - menu.padding.right - markerColumn,
+      );
+      const measure = measurer(menu);
+      const lineHeight = menu.fontSize * menu.lineHeight;
+      const items = visible.map((choice, i) => {
+        const lines = wrapText(transformText(choice.text, menu.textTransform), textWidth, measure);
         return {
-          source: text,
-          layout,
-          page,
-          revealed: next < 0 ? pageText.length : stops[Math.min(stops.length - 1, next + step - 1)],
+          choice,
+          marker: markers?.[start + i] ?? null,
+          lines,
+          height: Math.max(
+            menu.minHeight,
+            menu.padding.top + menu.padding.bottom + lines.length * lineHeight,
+          ),
         };
       });
-    }, 16);
-    return () => window.clearInterval(timer);
-  }, [text, layout, page, pageText, stops, speed, paused, instant, printing]);
-
-  useEffect(() => {
-    latest.current.onDisplayChange?.({
-      text: pageText,
-      page,
-      pageCount: pages.length,
-      printing,
-      choices: shownChoices,
-    });
-  }, [pageText, page, pages.length, printing, shownChoices]);
-  const completedPage = useRef<string | null>(null);
-  useEffect(() => {
-    const key = `${text}:${page}:${pageText}`;
-    if (!printing && completedPage.current !== key) {
-      completedPage.current = key;
-      latest.current.onPrintComplete?.();
-    }
-  }, [text, page, pageText, printing]);
-
-  const skip = useCallback(() => {
-    if (allowFastSkip && !paused)
-      setPlayback({ source: text, layout, page, revealed: pageText.length });
-  }, [allowFastSkip, paused, text, layout, page, pageText]);
-  const advance = useCallback(() => {
-    if (paused) return;
-    if (printing) {
-      skip();
-      return;
-    }
-    if (page < pages.length - 1) setPlayback({ source: text, layout, page: page + 1, revealed: 0 });
-    else if (!choices.length) latest.current.onAdvance?.();
-  }, [paused, printing, skip, page, pages.length, text, layout, choices.length]);
-  const choose = useCallback(
-    (index: number) => {
-      if (!paused && choiceReady && choices.some((choice) => choice.index === index))
-        latest.current.onChoose?.(index);
-    },
-    [paused, choiceReady, choices],
-  );
-  useImperativeHandle(
-    ref,
-    () => ({ advance, skip, choose, save: () => ({ page, revealed: visibleCount }) }),
-    [advance, skip, choose, page, visibleCount],
-  );
-
-  const speakerStyle = speaker ? speakers?.[speaker] : undefined;
-  const draw = useCallback(
-    (ctx: CanvasRenderingContext2D, w: number, h: number) => {
-      ctx.fillStyle = theme.background;
-      ctx.strokeStyle = theme.border;
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.roundRect(1, 1, w - 2, h - 2, Math.max(0, theme.radius));
-      ctx.fill();
-      ctx.stroke();
-      ctx.fillStyle = speakerStyle?.color ?? theme.accent;
-      ctx.font = speakerStyle?.font ?? "600 15px system-ui";
-      ctx.fillText(
-        (speakerStyle?.name ?? speaker ?? "Narrator").toLocaleUpperCase(),
-        safePadding,
-        safePadding + 12,
-        w - 2 * safePadding,
-      );
-      ctx.font = `${fontSize}px ${theme.fontFamily}`;
-      ctx.fillStyle = theme.color;
-      ctx.textBaseline = "top";
-      pageText
-        .slice(0, visibleCount)
-        .split("\n")
-        .forEach((line, i) => {
-          ctx.fillText(line, safePadding, safePadding + 34 + i * lineHeight);
-        });
-      ctx.textBaseline = "alphabetic";
-      ctx.font = "12px system-ui";
-      ctx.fillStyle = theme.muted;
-      const hint = paused
-        ? "PAUSED"
-        : printing
-          ? allowFastSkip
-            ? "CLICK TO REVEAL"
-            : ""
-          : choices.length && choiceReady
-            ? "MAKE YOUR CHOICE"
-            : "CLICK TO CONTINUE  ›";
-      ctx.fillText(hint, safePadding, h - 16);
-      if (pages.length > 1) {
+      const placed = layoutChoiceMenu({ ...base, itemHeights: items.map((item) => item.height) });
+      return {
+        markerColumn,
+        pager: placed.pager,
+        items: items.map((item, i) => ({ ...item, rect: placed.items[i] })),
+      };
+    }, [
+      menu,
+      markers,
+      shownChoices,
+      currentChoicePage,
+      choicePageCount,
+      panelWidth,
+      panelHeight,
+      position[1],
+      badge?.protrusion,
+      fontRevision,
+    ]);
+    const pagerLabels = [
+      labels.previousChoices,
+      labels.choicePage(currentChoicePage + 1, choicePageCount),
+      labels.nextChoices,
+    ].map((value) => (menu && menu.pager ? transformText(value, menu.pager.textTransform) : value));
+    const [previousLabel, statusLabel, nextLabel] = pagerLabels;
+    const drawPager = useCallback(
+      (ctx: CanvasRenderingContext2D, w: number, h: number) => {
+        if (!menu || !menu.pager) return;
+        drawSurface(ctx, w, h, menu.pager.surface);
+        applyText(ctx, menu.pager);
+        ctx.fillStyle = menu.pager.color;
+        const inset = Math.max(14, menu.pager.surface.radius);
+        fillCentered(ctx, previousLabel, inset, h / 2);
+        ctx.textAlign = "center";
+        fillCentered(ctx, statusLabel, w / 2, h / 2);
         ctx.textAlign = "right";
-        ctx.fillText(`${page + 1} / ${pages.length}`, w - safePadding, h - 16);
-      }
-    },
-    [
-      theme,
-      speakerStyle,
-      speaker,
-      safePadding,
-      fontSize,
-      pageText,
-      visibleCount,
-      lineHeight,
-      paused,
-      printing,
-      allowFastSkip,
-      choices.length,
-      choiceReady,
-      pages.length,
-      page,
-    ],
-  );
+        fillCentered(ctx, nextLabel, w - inset, h / 2);
+      },
+      [menu, previousLabel, statusLabel, nextLabel],
+    );
 
-  const choiceLayouts = useMemo(() => {
-    const context = document.createElement("canvas").getContext("2d")!;
-    context.font = `${theme.fontSize * 0.85}px ${theme.fontFamily}`;
-    let offset = safeHeight / 2 + 12;
-    const ordered = position[1] > 0 ? visibleChoices : [...visibleChoices].reverse();
-    return ordered.map((choice) => {
-      const lines = wrapText(
-        choice.text,
-        safeWidth - safePadding * 2 - 40,
-        (value) => context.measureText(value).width,
-      );
-      const choiceHeight = Math.max(50, 20 + lines.length * theme.fontSize * 1.15);
-      const y = (offset + choiceHeight / 2) * (position[1] > 0 ? -1 : 1);
-      offset += choiceHeight + 8;
-      return { choice, y, height: choiceHeight };
-    });
-  }, [
-    visibleChoices,
-    position[1],
-    theme.fontSize,
-    theme.fontFamily,
-    safeHeight,
-    safeWidth,
-    safePadding,
-    fontRevision,
-  ]);
-
-  return (
-    <group position={position}>
-      <CanvasPanel
-        width={safeWidth}
-        height={safeHeight}
-        draw={draw}
-        renderOrder={100}
-        onClick={(event) => {
-          event.stopPropagation();
-          advance();
-        }}
-      />
-      {choiceLayouts.map(({ choice, y, height: choiceHeight }) => (
-        <ChoicePanel
-          key={choice.index}
-          text={choice.text}
-          index={choice.index}
-          y={y}
-          width={safeWidth}
-          height={choiceHeight}
-          theme={theme}
-          padding={safePadding}
-          onChoose={choose}
-        />
-      ))}
-      {choicePageCount > 1 && (
+    return (
+      <group position={position as [number, number, number]}>
         <CanvasPanel
-          width={safeWidth}
-          height={36}
-          position={[
-            0,
-            (safeHeight / 2 + 32) * (position[1] > 0 ? -1 : 1) +
-              choiceLayouts.reduce((sum, item) => sum + item.height + 8, 0) *
-                (position[1] > 0 ? -1 : 1),
-            1,
-          ]}
-          renderOrder={102}
-          draw={(ctx, w) => {
-            ctx.fillStyle = theme.background;
-            ctx.fillRect(0, 0, w, 36);
-            ctx.fillStyle = theme.accent;
-            ctx.font = "14px system-ui";
-            ctx.fillText("‹ Previous choices", 15, 24);
-            ctx.textAlign = "right";
-            ctx.fillText(
-              `Choices ${currentChoicePage + 1}/${choicePageCount} · Next ›`,
-              w - 15,
-              24,
-            );
-          }}
+          width={panelWidth}
+          height={panelHeight}
+          resolution={resolution}
+          draw={draw}
+          renderOrder={100}
           onClick={(event) => {
             event.stopPropagation();
-            if (paused) return;
-            const point = event.object.worldToLocal(event.point.clone());
-            setChoicePage(
-              (currentChoicePage + (point.x < 0 ? -1 : 1) + choicePageCount) % choicePageCount,
-            );
+            advance();
           }}
         />
-      )}
-    </group>
-  );
-});
+        {badge && (
+          <CanvasPanel
+            width={badge.width}
+            height={badge.height}
+            resolution={resolution}
+            position={[badge.x, badge.y, 1]}
+            renderOrder={103}
+            draw={drawBadge}
+            onClick={(event) => {
+              event.stopPropagation();
+              advance();
+            }}
+          />
+        )}
+        {menu &&
+          menuLayout?.items.map((item) => (
+            <ChoicePanel
+              key={item.choice.index}
+              index={item.choice.index}
+              lines={item.lines}
+              marker={item.marker}
+              markerColumn={menuLayout.markerColumn}
+              rect={item.rect}
+              menu={menu}
+              resolution={resolution}
+              onChoose={choose}
+            />
+          ))}
+        {menuLayout?.pager && (
+          <CanvasPanel
+            width={menuLayout.pager.width}
+            height={menuLayout.pager.height}
+            resolution={resolution}
+            position={[menuLayout.pager.x, menuLayout.pager.y, 1]}
+            renderOrder={102}
+            draw={drawPager}
+            onClick={(event) => {
+              event.stopPropagation();
+              if (paused) return;
+              const point = event.object.worldToLocal(event.point.clone());
+              setChoicePage(
+                (currentChoicePage + (point.x < 0 ? -1 : 1) + choicePageCount) % choicePageCount,
+              );
+            }}
+          />
+        )}
+      </group>
+    );
+  },
+);
 
 export interface InkDialogueProps extends Omit<
   DialogueBoxProps,

@@ -69,6 +69,7 @@ export function MyGame() {
       ref={player}
       definition={game}
       dialogue={{
+        preset: "storybook", // or your own preset object; props below override it
         theme: { fontFamily: "StoryFont", fontSize: 25 },
         speakers: { hero: { name: "Ada", color: "#eabd78" } },
         speed: 36,

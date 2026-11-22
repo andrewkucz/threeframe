@@ -69,28 +69,32 @@ export const sharedAssets = `import { fontAsset, textureAsset } from "@threefram
 export const valley = textureAsset("/assets/valley.svg");
 export const tower = textureAsset("/assets/tower.svg");
 export const storyFont = fontAsset("Lora", "/assets/fonts/Lora.ttf");
+// Only the keeper sets its own accent; the others follow the theme (and any preset).
 export const speakers = {
-  scout: { name: "The traveler", color: "#eabd78" },
+  scout: { name: "The traveler" },
   keeper: { name: "The keeper", color: "#99d2c4" },
-  narrator: { name: "The valley", color: "#a4bbcb" },
+  narrator: { name: "The valley" },
 };`;
 
 export function spineAssets(binary: boolean) {
   return `${sharedAssets}\n\nimport { spineAsset } from "@threeframe/spine";\n\nexport const spineboy = spineAsset(${printValue({ skeleton: `/assets/spineboy/spineboy-pro.${binary ? "skel" : "json"}`, atlas: "/assets/spineboy/spineboy.atlas", format: binary ? "binary" : "json" })});`;
 }
 
-export const gridHelper =
-  '<gridHelper args={[2560, 64, "#4a6472", "#22353f"]} rotation-x={Math.PI / 2} position-z={-100} />';
+export const gridHelper = (colors: readonly [string, string] = ["#4a6472", "#22353f"]) =>
+  `<gridHelper args={[2560, 64, "${colors[0]}", "${colors[1]}"]} rotation-x={Math.PI / 2} position-z={-100} />`;
 
 export function sceneHost({
   background = true,
   font = true,
   fit = "contain",
+  stage,
 }: {
   /** `true` is the valley backdrop; `"grid"` draws a GridHelper facing the camera. */
   background?: boolean | "valley" | "tower" | "grid";
   font?: boolean;
   fit?: "contain" | "cover";
+  /** Stage color and grid line colors for the grid background. */
+  stage?: { color: string; grid: readonly [string, string] };
 } = {}) {
   const backdrop = background === true ? "valley" : background === "grid" ? false : background;
   const imports = [backdrop, font && "storyFont"].filter(Boolean).join(", ");
@@ -101,7 +105,7 @@ ${imports ? `import { ${imports} } from "./assets";\n` : ""}import Example from 
 function Scene() {${font ? "\n  useAsset(storyFont); // Wait for the font before measuring text." : ""}
   return (
     <>
-      ${backdrop ? `<Backdrop asset={${backdrop}} />\n      ` : background === "grid" ? `${gridHelper}\n      ` : ""}<Example />
+      ${backdrop ? `<Backdrop asset={${backdrop}} />\n      ` : background === "grid" ? `${gridHelper(stage?.grid)}\n      ` : ""}<Example />
     </>
   );
 }
@@ -109,7 +113,7 @@ function Scene() {${font ? "\n  useAsset(storyFont); // Wait for the font before
 export default function App() {
   const store = useOwnedAssetStore();
   return (
-    <div style={{ aspectRatio: "16 / 9" }}>
+    <div style={{ aspectRatio: "16 / 9"${stage ? `, background: "${stage.color}"` : ""} }}>
       <AssetProvider store={store}>
         <SceneCanvas width={1280} height={720} fit="${fit}">
           <Suspense fallback={null}>

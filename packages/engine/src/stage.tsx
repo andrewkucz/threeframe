@@ -1,22 +1,43 @@
-import { Backdrop, type Asset } from "@threeframe/core";
+import { Backdrop, type Asset, type BackdropProps } from "@threeframe/core";
 import { SpineSprite, type SpineAssetData, type SpineSpriteProps } from "@threeframe/spine";
 import type { CompiledStory } from "@threeframe/ink";
 import type { Texture } from "three";
 
-export interface CharacterDefinition {
+export type CharacterOverrides = Pick<
+  SpineSpriteProps,
+  | "animation"
+  | "loop"
+  | "paused"
+  | "timeScale"
+  | "flipX"
+  | "flipY"
+  | "skin"
+  | "opacity"
+  | "tint"
+  | "visible"
+  | "mixDuration"
+  | "mixes"
+  | "tracks"
+  | "queue"
+  | "material"
+  | "renderOrder"
+>;
+/** A character's look everywhere it appears; placements override it per scene. */
+export interface CharacterDefinition extends CharacterOverrides {
   asset: Asset<SpineAssetData>;
-  animation?: string;
-  skin?: string;
 }
-export interface CharacterPlacement {
+export interface CharacterPlacement extends CharacterOverrides {
   id: string;
   position?: [number, number, number];
   scale?: number;
-  flipX?: boolean;
-  animation?: string;
+  /** Z rotation in radians. */
+  rotation?: number;
 }
 export interface SceneDefinition {
   background?: Asset<Texture>;
+  /** Fit, opacity, alignment, tint, and offset for this scene's background image. */
+  backdrop?: Omit<BackdropProps, "asset">;
+  /** Clear color behind the scene; defaults to the definition's `backgroundColor`. */
   color?: string;
   characters?: readonly CharacterPlacement[];
 }
@@ -30,19 +51,11 @@ export interface GameDefinition {
   assets?: readonly Asset<any>[];
   width?: number;
   height?: number;
+  /** Clear color for scenes without their own `color`. */
+  backgroundColor?: string;
+  /** Position and scale for placements that omit them. */
+  characterDefaults?: { position?: [number, number, number]; scale?: number };
 }
-export type CharacterOverrides = Pick<
-  SpineSpriteProps,
-  | "animation"
-  | "paused"
-  | "timeScale"
-  | "flipX"
-  | "skin"
-  | "opacity"
-  | "tint"
-  | "visible"
-  | "mixDuration"
->;
 export interface StageState {
   scene: string;
   characters: Record<string, CharacterOverrides>;
@@ -120,24 +133,31 @@ export function GameStage({
   if (!scene) throw new Error(`Unknown game scene: ${overrideScene ?? state.scene}`);
   return (
     <group>
-      <color attach="background" args={[scene.color ?? "#142632"]} />
+      <color attach="background" args={[scene.color ?? definition.backgroundColor ?? "#142632"]} />
       {scene.background && (
-        <Backdrop asset={scene.background} width={definition.width} height={definition.height} />
+        <Backdrop
+          width={definition.width}
+          height={definition.height}
+          {...scene.backdrop}
+          asset={scene.background}
+        />
       )}
-      {scene.characters?.map((placement) => {
-        const character = definition.characters![placement.id];
+      {scene.characters?.map(({ id, position, scale, rotation, ...placement }) => {
+        const { asset, ...character } = definition.characters![id];
+        // Lowest to highest: definition, scene placement, Ink tags, live overrides.
+        const override = characterOverrides?.[id];
         return (
           <SpineSprite
-            key={placement.id}
-            asset={character.asset}
-            position={placement.position ?? [0, -200, 0]}
-            scale={placement.scale ?? 0.6}
-            animation={placement.animation ?? character.animation}
-            skin={character.skin}
-            flipX={placement.flipX}
-            {...state.characters[placement.id]}
-            {...characterOverrides?.[placement.id]}
-            paused={paused || characterOverrides?.[placement.id]?.paused}
+            key={id}
+            asset={asset}
+            position={position ?? definition.characterDefaults?.position ?? [0, -200, 0]}
+            scale={scale ?? definition.characterDefaults?.scale ?? 0.6}
+            rotation-z={rotation ?? 0}
+            {...character}
+            {...placement}
+            {...state.characters[id]}
+            {...override}
+            paused={paused || override?.paused || placement.paused || character.paused}
           />
         );
       })}

@@ -454,6 +454,7 @@ h1 {
   position: absolute;
   inset: 0;
   color: #ccdad4;
+  background: #14232c;
 }
 .loading {
   min-height: 180px;
@@ -514,6 +515,111 @@ h1 {
   display: flex;
   flex-direction: column;
 }
+/* Presets sit in their own card above the controls; the column shares one sticky viewport. */
+.controls-column {
+  min-width: 0;
+  position: sticky;
+  top: 20px;
+  max-height: calc(100vh - 40px);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.controls-column > .controls-panel {
+  position: static;
+  max-height: none;
+  flex: 0 1 auto;
+  min-height: 0;
+}
+.presets {
+  flex-shrink: 0;
+  padding: 13px 14px 14px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+}
+.presets-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 9px;
+}
+.presets-header h2 {
+  font-size: 12px;
+  font-weight: 600;
+  margin: 0;
+}
+.presets-actions {
+  display: flex;
+  gap: 2px;
+}
+.presets select {
+  background: #fff;
+}
+.presets-picker {
+  display: flex;
+  gap: 6px;
+}
+.presets-picker select {
+  flex: 1;
+  min-width: 0;
+}
+.icon-button {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  min-height: 32px;
+  padding: 0;
+  border: 1px solid #dbe2d7;
+  border-radius: 5px;
+  background: #fff;
+  color: #334e3d;
+}
+.icon-button:hover:not(:disabled) {
+  background: #eaf0e7;
+  color: #214b36;
+}
+.icon-button:disabled {
+  color: #b5bfb1;
+  cursor: not-allowed;
+}
+.presets .control-help {
+  margin-top: 6px;
+}
+.presets-editor {
+  margin-top: 10px;
+  display: grid;
+  gap: 8px;
+}
+.source-editor.presets-json {
+  min-height: 150px;
+  font-size: 11px;
+}
+.presets-editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.presets-editor-actions .primary-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.presets-status {
+  margin: 8px 0 0;
+  font-size: 11px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.presets-status-ok {
+  color: #2d604c;
+}
+.presets-status-warn {
+  color: #8a5a12;
+}
+.presets-status-error {
+  color: #a3352b;
+}
 .controls-header {
   display: flex;
   align-items: center;
@@ -562,6 +668,56 @@ h1 {
   font-weight: 600;
   float: left;
   width: 100%;
+}
+.control-group + .control-group,
+.control-group + fieldset,
+fieldset + .control-group {
+  border-top: 1px solid #ecf0e9;
+}
+.control-group summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 12px 16px;
+  font-size: 10px;
+  color: #77836f;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+}
+.control-group summary::-webkit-details-marker {
+  display: none;
+}
+.control-group summary:hover {
+  background: #f8faf5;
+}
+.control-group summary span {
+  font: 10px var(--mono);
+  letter-spacing: 0;
+  color: #98a293;
+}
+.control-group summary svg {
+  margin-left: auto;
+  transition: transform 120ms;
+}
+.control-group[open] > summary svg {
+  transform: rotate(180deg);
+}
+.controls-body .control-group fieldset {
+  margin: 0;
+  padding: 2px 16px 18px;
+}
+.text-input {
+  width: 100%;
+  padding: 7px 8px;
+  border: 1px solid #dbe2d7;
+  background: #fafbf8;
+  color: #334e3d;
+  border-radius: 5px;
+  font-size: 12px;
+  min-height: 32px;
 }
 .control {
   clear: both;
@@ -655,7 +811,16 @@ input[type="range"] {
   font: 11px var(--mono);
   color: #61705d;
 }
+.color-input .text-input {
+  flex: 1;
+  min-width: 0;
+  font: 11px var(--mono);
+}
+.color-input .text-input[aria-invalid="true"] {
+  border-color: #d39a92;
+}
 input[type="color"] {
+  flex-shrink: 0;
   appearance: none;
   width: 34px;
   height: 28px;
@@ -1032,7 +1197,8 @@ progress {
   .topbar {
     height: 46px;
   }
-  .controls-panel {
+  .controls-panel,
+  .controls-column {
     max-height: calc(100vh - 32px);
     top: 16px;
   }
@@ -1086,9 +1252,16 @@ progress {
   .notice {
     order: 1;
   }
-  .controls-panel {
+  .controls-panel,
+  .controls-column {
     order: 2;
     position: static;
+    max-height: 410px;
+  }
+  .controls-column {
+    max-height: none;
+  }
+  .controls-column > .controls-panel {
     max-height: 410px;
   }
   .docs-example {

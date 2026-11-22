@@ -1,33 +1,59 @@
 import { NarrativeGame, type GameSave, type NarrativeGameHandle } from "@threeframe/engine";
+import {
+  mergeDialogueOptions,
+  resolveDialoguePreset,
+  type DialoguePreset,
+  type DialoguePresetName,
+} from "@threeframe/ink";
 import { useCallback, useMemo, useRef, useState } from "react";
 import type { NarrativeEvent } from "../types";
 import { createDemo, source, speakers } from "../demo";
 import { Icon } from "../ui";
 import { Controls } from "../docs/Controls";
+import { dialoguePresets } from "../docs/dialoguePresets";
+import { Presets } from "../docs/Presets";
 import { CodeBlock, Disclosure, DocsExample, Preview } from "../docs/DocsExample";
 import { code, componentExample, gameSetup, jsx } from "../docs/examples";
-import { playerControls, playerDefaults, playerReference } from "../docs/options";
+import {
+  playerControls,
+  playerDefaults,
+  playerDialogueProps,
+  playerGameProps,
+  playerPresetValues,
+  playerReference,
+} from "../docs/options";
 
 export default function NarrativeGamePage() {
   const game = useRef<NarrativeGameHandle>(null);
   const [settings, setSettings] = useState(playerDefaults);
+  // An imported preset object, passed to NarrativeGame as-is (custom presets work like built-ins).
+  const [custom, setCustom] = useState<{ name: string; preset: DialoguePreset } | null>(null);
+  const presetSource = custom?.preset ?? settings.preset;
+  const presetValues = playerPresetValues(presetSource);
+  const presetModified = Object.entries(presetValues).some(
+    ([key, value]) => settings[key as keyof typeof presetValues] !== value,
+  );
+  const applyPreset = (name: string, preset: DialoguePreset | null) => {
+    setCustom(preset ? { name, preset } : null);
+    setSettings((previous) => ({
+      ...previous,
+      preset: preset ? "" : name,
+      ...playerPresetValues(preset ?? name),
+    }));
+  };
   const [script, setScript] = useState(source);
   const [draft, setDraft] = useState(source);
   const definition = useMemo(() => createDemo(script), [script]);
   const [events, setEvents] = useState<string[]>([]);
   const [notice, setNotice] = useState("");
   const [courage, setCourage] = useState(0);
-  const dialogue = useMemo(
-    () => ({
-      speed: settings.speed,
-      reveal: settings.reveal,
-      allowFastSkip: settings.fastSkip,
-      position: [0, settings.placement === "bottom" ? -220 : 215, 100] as [number, number, number],
-      theme: { fontFamily: settings.font, fontSize: settings.fontSize, accent: settings.accent },
-      speakers: { ...speakers, scout: { ...speakers.scout, color: settings.accent } },
-    }),
-    [settings],
+  // The preset by name, plus only the controls changed from it: the same layering users write.
+  const dialogueOptions = useMemo(
+    () => playerDialogueProps(settings, custom?.preset),
+    [settings, custom],
   );
+  const dialogue = useMemo(() => ({ ...dialogueOptions, speakers }), [dialogueOptions]);
+  const gameProps = playerGameProps(settings);
   const handleEvent = useCallback((event: NarrativeEvent) => {
     const message =
       event.type === "tags"
@@ -68,17 +94,14 @@ export default function NarrativeGamePage() {
       definition: code("game"),
       paused: settings.paused,
       scene: settings.scene || undefined,
-      dialogue: {
-        ...dialogue,
-        speakers: code(
-          `{ ...speakers, scout: { ...speakers.scout, color: ${JSON.stringify(settings.accent)} } }`,
-        ),
-      },
+      ...gameProps,
+      dialogue: { ...dialogueOptions, speakers: code("speakers") },
       onEvent: code("(event) => console.log(event)"),
     }),
   );
   const reset = () => {
     setSettings(playerDefaults);
+    setCustom(null);
     setScript(source);
     setDraft(source);
     setNotice("");
@@ -116,6 +139,7 @@ export default function NarrativeGamePage() {
             paused={settings.paused}
             scene={settings.scene || undefined}
             dialogue={dialogue}
+            {...gameProps}
             onEvent={handleEvent}
             onError={(error) => setNotice(error.message)}
           />
@@ -203,6 +227,57 @@ export default function NarrativeGamePage() {
         values={settings}
         onChange={(key, value) => setSettings((previous) => ({ ...previous, [key]: value }))}
         onReset={reset}
+        collapsible
+        preface={
+          <Presets
+            presets={dialoguePresets}
+            selected={custom ? null : settings.preset || "threeframe"}
+            importedName={custom?.name}
+            modified={presetModified}
+            exportText={() => {
+              // The effective look: the preset with this page's overrides folded in.
+              const { preset: _preset, ...overrides } = dialogueOptions;
+              const base =
+                typeof presetSource === "string"
+                  ? resolveDialoguePreset(
+                      (presetSource || undefined) as DialoguePresetName | undefined,
+                    )
+                  : presetSource;
+              return JSON.stringify(
+                {
+                  name: custom?.name ?? (settings.preset || "threeframe"),
+                  preset: mergeDialogueOptions<DialoguePreset>(base, overrides),
+                },
+                null,
+                2,
+              );
+            }}
+            onSelect={(id) => applyPreset(id, null)}
+            onRestore={() =>
+              setSettings((previous) => ({ ...previous, ...playerPresetValues(presetSource) }))
+            }
+            onImport={(text) => {
+              let data: unknown;
+              try {
+                data = JSON.parse(text);
+              } catch (error) {
+                throw new Error(
+                  `Invalid JSON: ${error instanceof Error ? error.message : String(error)}`,
+                );
+              }
+              if (!data || typeof data !== "object" || Array.isArray(data))
+                throw new Error("Expected a preset object.");
+              const record = data as Record<string, unknown>;
+              const wrapped =
+                record.preset && typeof record.preset === "object" ? record.preset : null;
+              applyPreset(
+                typeof record.name === "string" && wrapped ? record.name : "Imported preset",
+                (wrapped ?? record) as DialoguePreset,
+              );
+              return [];
+            }}
+          />
+        }
       />
     </div>
   );
