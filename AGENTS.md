@@ -1,3 +1,11 @@
+## Spine
+
+We render Spine through the `spine-threejs` runtime, and you may also be asked to inspect or edit Spine project files (`.spine`) and their exports (`.json`/`.skel`/`.atlas`). When Spine comes up, use any of these:
+
+- **Editor app:** `/Applications/Spine.app` on macOS (CLI: `/Applications/Spine.app/Contents/MacOS/Spine --help`), `~/spine` on Linux (CLI: `~/spine/Spine.sh --help`). Use it to open, inspect, edit and re-export Spine projects.
+- **Docs:** https://en.esotericsoftware.com/spine-documentation (links to the runtime guide and user guides).
+- **Runtime source:** clone https://github.com/esotericsoftware/spine-runtimes to `~/dev/spine-runtimes` if it isn't there yet, check out the branch matching our runtime version (4.3), and read it to understand runtime behavior.
+
 <!--VITE PLUS START-->
 
 # Using Vite+, the Unified Toolchain for the Web
