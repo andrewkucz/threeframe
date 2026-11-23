@@ -10,9 +10,11 @@ import { MeshBasicMaterial } from "three";
 import type { SpineAppearance, SpineAssetData, SpineRig } from "./assets";
 import { applySlotTints, slotTints, type SpineColors } from "./colors";
 import { hiddenSlots, resolveSkin } from "./skins";
+import { playAnimation } from "./transitions";
 
 export interface SpineSpriteHandle {
   mesh: SkeletonMesh;
+  /** Sets an animation, through any of the asset's `transitions` from the current one. */
   play: (animation: string, loop?: boolean, track?: number) => TrackEntry;
   queue: (animation: string, loop?: boolean, delay?: number, track?: number) => TrackEntry;
   clear: (track?: number, mix?: number) => void;
@@ -50,7 +52,10 @@ export interface SpineSpriteProps extends Omit<ThreeElements["group"], "ref"> {
   loop?: boolean;
   /** Played once each after `animation`, in order. */
   queue?: readonly SpineQueuedAnimation[];
-  /** Extra animations blended above the base on tracks 1, 2, …, e.g. a blink or aim. */
+  /**
+   * Extra animations blended above the base on tracks 1, 2, …, e.g. a blink, aim or held pose.
+   * Only tracks whose animation changes restart.
+   */
   tracks?: readonly SpineTrack[];
   paused?: boolean;
   timeScale?: number;
@@ -132,12 +137,13 @@ export const SpineSprite = forwardRef<SpineSpriteHandle, SpineSpriteProps>(funct
     value.state.clearListeners();
     value.dispose();
   });
-  const latest = useRef({ listener, onReady });
-  latest.current = { listener, onReady };
+  const latest = useRef({ listener, onReady, transitions: asset.transitions });
+  latest.current = { listener, onReady, transitions: asset.transitions };
   const handle = useMemo<SpineSpriteHandle>(
     () => ({
       mesh,
-      play: (name, looping = true, track = 0) => mesh.state.setAnimation(track, name, looping),
+      play: (name, looping = true, track = 0) =>
+        playAnimation(mesh.state, track, name, looping, latest.current.transitions),
       queue: (name, looping = false, delay = 0, track = 0) =>
         mesh.state.addAnimation(track, name, looping, delay),
       clear: (track = 0, mix = 0.2) => {
@@ -173,7 +179,7 @@ export const SpineSprite = forwardRef<SpineSpriteHandle, SpineSpriteProps>(funct
   const queueKey = JSON.stringify(queue ?? []);
   useEffect(() => {
     if (animation) {
-      mesh.state.setAnimation(0, animation, loop);
+      playAnimation(mesh.state, 0, animation, loop, latest.current.transitions);
       for (const entry of JSON.parse(queueKey) as SpineQueuedAnimation[])
         mesh.state.addAnimation(0, entry.animation, entry.loop ?? false, entry.delay ?? 0);
     } else {
@@ -183,18 +189,36 @@ export const SpineSprite = forwardRef<SpineSpriteHandle, SpineSpriteProps>(funct
     mesh.update(0);
   }, [mesh, animation, loop, queueKey]);
   const trackKey = JSON.stringify(tracks ?? []);
+  // The tracks last applied to this mesh, so unchanged tracks keep playing.
+  const applied = useRef<{ mesh: SkeletonMesh; tracks: SpineTrack[] } | null>(null);
   useEffect(() => {
-    const parsed = JSON.parse(trackKey) as SpineTrack[];
-    parsed.forEach((track, i) => {
-      const entry = mesh.state.setAnimation(i + 1, track.animation, track.loop ?? true);
-      entry.alpha = Math.min(1, Math.max(0, track.alpha ?? 1));
-      entry.timeScale = Math.max(0, track.timeScale ?? 1);
+    const next = JSON.parse(trackKey) as SpineTrack[];
+    const previous = applied.current?.mesh === mesh ? applied.current.tracks : [];
+    const { state } = mesh;
+    next.forEach((track, i) => {
+      const before = previous[i];
+      if (
+        !before ||
+        before.animation !== track.animation ||
+        (before.loop ?? true) !== (track.loop ?? true)
+      )
+        playAnimation(
+          state,
+          i + 1,
+          track.animation,
+          track.loop ?? true,
+          latest.current.transitions,
+        );
+      for (let entry = state.getTrack(i + 1); entry; entry = entry.next) {
+        entry.alpha = Math.min(1, Math.max(0, track.alpha ?? 1));
+        entry.timeScale = Math.max(0, track.timeScale ?? 1);
+      }
     });
+    // Mixing out to an empty animation returns keyed bones and slots to the setup pose.
+    for (let i = next.length; i < previous.length; i++)
+      state.setEmptyAnimation(i + 1, state.data.defaultMix);
+    applied.current = { mesh, tracks: next };
     mesh.update(0);
-    return () => {
-      // Mixing out to an empty animation returns keyed bones and slots to the setup pose.
-      parsed.forEach((_, i) => mesh.state.setEmptyAnimation(i + 1, mesh.state.data.defaultMix));
-    };
   }, [mesh, trackKey]);
   const skinKey = JSON.stringify(skin ?? null);
   const resolvedSkin = useMemo(

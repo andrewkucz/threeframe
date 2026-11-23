@@ -77,7 +77,7 @@ export const speakers = {
 };`;
 
 export function spineAssets(binary: boolean) {
-  return `${sharedAssets}\n\nimport { spineAsset } from "@threeframe/spine";\n\nexport const spineboy = spineAsset(${printValue({ skeleton: `/assets/spineboy/spineboy-pro.${binary ? "skel" : "json"}`, atlas: "/assets/spineboy/spineboy.atlas", format: binary ? "binary" : "json" })});`;
+  return `${sharedAssets}\n\nimport { spineAsset } from "@threeframe/spine";\n\nexport const spineboy = spineAsset(${printValue({ skeleton: `/assets/spineboy/spineboy-pro.${binary ? "skel" : "json"}`, atlas: "/assets/spineboy/spineboy.atlas", format: binary ? "binary" : "json", transitions: [["run", "idle", ["run-to-idle"]]] })});`;
 }
 
 export const gridHelper = (colors: readonly [string, string] = ["#4a6472", "#22353f"]) =>

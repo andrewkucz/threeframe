@@ -8,14 +8,18 @@ export { source };
 export const valley = textureAsset("/assets/valley.svg");
 export const tower = textureAsset("/assets/tower.svg");
 export const storyFont = fontAsset("Lora", "/assets/fonts/Lora.ttf");
+// Switching from run to idle plays the slow-down animation in between.
+const spineboyTransitions = [["run", "idle", ["run-to-idle"]]] as const;
 export const spineboy = spineAsset({
   skeleton: "/assets/spineboy/spineboy-pro.json",
   atlas: "/assets/spineboy/spineboy.atlas",
+  transitions: spineboyTransitions,
 });
 export const spineboyBinary = spineAsset({
   skeleton: "/assets/spineboy/spineboy-pro.skel",
   atlas: "/assets/spineboy/spineboy.atlas",
   format: "binary",
+  transitions: spineboyTransitions,
 });
 // Only the keeper sets its own accent; the others follow the theme (and any preset).
 export const speakers = {

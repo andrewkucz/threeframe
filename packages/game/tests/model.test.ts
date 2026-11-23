@@ -138,6 +138,22 @@ describe("manifest validation", () => {
     );
     expect(() => parseManifest(broken)).toThrow("Invalid game manifest");
   });
+  it("checks sprite transitions", () => {
+    const withTransitions = (transitions: unknown) =>
+      validateManifest({
+        ...manifest,
+        characters: {
+          ada: { name: "Ada", sprite: { skeleton: "ada.json", atlas: "ada.atlas", transitions } },
+        },
+      }).map((issue) => issue.path);
+    expect(withTransitions([["pose/crossed", "pose/back", ["pose/side"]]])).toEqual([]);
+    expect(withTransitions([["pose/crossed", "pose/back", "pose/side"]])).toEqual([
+      "characters.ada.sprite.transitions",
+    ]);
+    expect(withTransitions({ "pose/crossed": "pose/back" })).toEqual([
+      "characters.ada.sprite.transitions",
+    ]);
+  });
 });
 
 describe("script lint", () => {

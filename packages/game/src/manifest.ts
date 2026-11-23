@@ -38,6 +38,11 @@ export interface SpriteDefinition {
   colorGroups?: Readonly<Record<string, SpriteColorGroup>>;
   /** Slots hidden while a skin, or any skin in a folder, is worn: `{ "accessories/gag": ["mouth"] }`. */
   hides?: Readonly<Record<string, readonly string[]>>;
+  /**
+   * Animations a track plays between two others, as `[from, to, [via, ...]]`, e.g. a pose to pass
+   * through or a transition animation (see `@threeframe/spine`).
+   */
+  transitions?: readonly (readonly [from: string, to: string, via: readonly string[]])[];
 }
 export interface SpriteColorGroup {
   slots: readonly string[];
@@ -316,6 +321,22 @@ export function validateManifest(value: unknown, files?: readonly string[]): Man
             ))
         )
           error(`${at}.sprite.hides`, "Expected { skin-or-folder: [slot, ...] }.");
+        const transitions = character.sprite.transitions;
+        const isNames = (names: unknown) =>
+          Array.isArray(names) && names.every((name) => typeof name === "string");
+        if (
+          transitions !== undefined &&
+          (!Array.isArray(transitions) ||
+            !transitions.every(
+              (entry) =>
+                Array.isArray(entry) &&
+                entry.length === 3 &&
+                typeof entry[0] === "string" &&
+                typeof entry[1] === "string" &&
+                isNames(entry[2]),
+            ))
+        )
+          error(`${at}.sprite.transitions`, "Expected [[from, to, [via, ...]], ...].");
         const groups = character.sprite.colorGroups;
         if (groups !== undefined && !isRecord(groups))
           error(`${at}.sprite.colorGroups`, "Expected an object.");

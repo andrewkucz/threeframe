@@ -50,7 +50,7 @@ export default function SpineSpritePage() {
   const specs = spineControls.map((spec) =>
     spec.key === "animation" ? { ...spec, options: options(...animations) } : spec,
   );
-  const assetDeclaration = `const spineboy = spineAsset(${printValue({ skeleton: `/assets/spineboy/spineboy-pro.${binary ? "skel" : "json"}`, atlas: "/assets/spineboy/spineboy.atlas", format: binary ? "binary" : "json" })});`;
+  const assetDeclaration = `const spineboy = spineAsset(${printValue({ skeleton: `/assets/spineboy/spineboy-pro.${binary ? "skel" : "json"}`, atlas: "/assets/spineboy/spineboy.atlas", format: binary ? "binary" : "json", transitions: [["run", "idle", ["run-to-idle"]]] })});`;
   const usage = componentExample(
     `import { SpineSprite, spineAsset } from "@threeframe/spine";\n\n${assetDeclaration}`,
     jsx("SpineSprite", { asset: code("spineboy"), ...props }),

@@ -27,7 +27,7 @@ Props react to changes:
 
 - `animation`, `loop` (true): the base animation on track 0.
 - `queue`: `{ animation, loop?, delay? }[]` played after the base animation, in order.
-- `tracks`: `{ animation, loop?, alpha?, timeScale? }[]` blended above the base on tracks 1, 2, … (an aim or blink overlay).
+- `tracks`: `{ animation, loop?, alpha?, timeScale? }[]` blended above the base on tracks 1, 2, … (an aim, a blink, a held pose). Only tracks whose animation or `loop` changes restart; the others keep playing.
 - `mixDuration` (0.2 seconds) and `mixes`: `[from, to, seconds][]` per-transition blend times.
 - `paused` (false), `timeScale` (1); animation advances in `useFrame`, with frame deltas capped at 0.1 seconds to prevent large background-tab jumps.
 - `skin`: one name, or several combined in order into one skin for mix-and-match outfits.
@@ -82,6 +82,24 @@ spineAsset({ skeleton, atlas, hides: { "accessories/gag": ["mouth"] } });
 ```
 
 `hiddenSlots(hides, skins)` lists the slots hidden for a set of skins.
+
+## Transitions
+
+Some changes look wrong as a straight blend: a character uncrosses her arms before putting them behind her back, and a runner slows down through `run-to-idle`. List them on the asset as `transitions`, `[from, to, via]`. When a track (the base animation, an overlay track or `handle.play`) switches from `from` to `to`, it plays each `via` animation first, fully mixed in and played to its end, then `to`:
+
+```ts
+spineAsset({
+  skeleton,
+  atlas,
+  transitions: [
+    ["run", "idle", ["run-to-idle"]],
+    ["pose/side", "pose/behind-back", ["transition/side-to-behind-back"]],
+    ["pose/crossed", "pose/behind-back", ["pose/side", "transition/side-to-behind-back"]],
+  ],
+});
+```
+
+A via can be a held pose (a single key, which the track holds for its mix duration) or a transition animation that starts on `from`'s pose and ends on `to`'s. Transition animations can also key the moment a part changes layer, such as hands moving from front slots to slots behind the body. `playAnimation(state, track, animation, loop, transitions)` does the same for imperative use.
 
 ## Colors
 

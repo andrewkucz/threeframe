@@ -17,6 +17,7 @@ import {
 } from "@threeframe/core";
 import type { SpineColorGroups, SpineColors } from "./colors";
 import type { SpineSlotHides } from "./skins";
+import type { SpineTransition } from "./transitions";
 
 /** Appearance a `SpineSprite` starts with when it doesn't set its own. */
 export interface SpineAppearance {
@@ -37,6 +38,12 @@ export interface SpineRig {
    * their attachment.
    */
   hides?: SpineSlotHides;
+  /**
+   * Animations played on the way between two others on the same track, as `[from, to, via]`:
+   * poses to pass through or transition animations, e.g.
+   * `["pose/crossed", "pose/behind-back", ["pose/side"]]` or `["run", "idle", ["run-to-idle"]]`.
+   */
+  transitions?: readonly SpineTransition[];
 }
 export interface SpineSource extends SpineAppearance, SpineRig {
   skeleton: string;
@@ -82,6 +89,7 @@ export function spineAsset({
   colors,
   colorGroups,
   hides,
+  transitions,
 }: SpineSource): SpineAsset {
   return {
     skin,
@@ -89,6 +97,7 @@ export function spineAsset({
     colors,
     colorGroups,
     hides,
+    transitions,
     key: `spine:${format}:${scale}:${sourceKey(source)}${skeleton}:${atlas}`,
     async load(signal) {
       const readSkeleton = async (): Promise<string | ArrayBuffer> => {
