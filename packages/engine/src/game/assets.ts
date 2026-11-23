@@ -31,6 +31,7 @@ export function gameAssets(pkg: GamePackage): GameAssets {
                 source,
                 skin: character.skin,
                 attachments: character.attachments,
+                colors: character.colors,
               })
             : null,
         );

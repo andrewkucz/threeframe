@@ -481,6 +481,43 @@ export const builtinDirectives: readonly DirectiveDefinition[] = [
     check: (directive, manifest) => checkCharacter(directive, manifest),
   },
   {
+    name: "color",
+    aliases: ["recolor"],
+    category: "character",
+    usage: "color <character> <group>=<preset|color|reset>...",
+    description:
+      "Recolors parts of a character by the sprite's color groups, e.g. `color ada hair=blonde eyes=3a7`.",
+    run(directive, context) {
+      const id = requireCharacter(context, directive);
+      const groups = context.manifest.characters?.[id]?.sprite?.colorGroups;
+      updateCharacter(context, id, (current) => {
+        const colors = { ...current.colors };
+        for (const [name, value] of Object.entries(directive.options)) {
+          if (value === "reset") delete colors[name];
+          else colors[name] = groups?.[name]?.presets?.[String(value)] ?? directiveColor(value, "");
+        }
+        return { colors };
+      });
+    },
+    check: (directive, manifest) => {
+      const problems = checkCharacter(directive, manifest);
+      const id = String(directive.args[0] ?? "");
+      const groups = manifest.characters?.[id]?.sprite?.colorGroups;
+      if (!Object.keys(directive.options).length) problems.push("Expected <group>=<color>.");
+      for (const [name, value] of Object.entries(directive.options)) {
+        const text = String(value);
+        if (groups && !groups[name]) problems.push(`${id} has no color group "${name}".`);
+        else if (
+          text !== "reset" &&
+          !groups?.[name]?.presets?.[text] &&
+          !/^#?([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(text)
+        )
+          problems.push(`Unknown color for ${name}: ${text}`);
+      }
+      return problems;
+    },
+  },
+  {
     name: "face",
     category: "character",
     usage: "face <character> left|right|flip",

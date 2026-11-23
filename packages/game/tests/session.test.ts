@@ -21,6 +21,15 @@ const manifest: GameManifest = createManifest({
       name: "Ada",
       skin: ["body/ada", "clothes/top/shirt1"],
       outfits: { gala: ["body/ada", "dress"] },
+      colors: { skin: "#f5d8ab" },
+      sprite: {
+        skeleton: "ada.json",
+        atlas: "ada.atlas",
+        colorGroups: {
+          skin: { slots: ["body"] },
+          hair: { slots: ["hair"], presets: { blonde: "#c1b01c" } },
+        },
+      },
     },
   },
   backdrops: {
@@ -50,8 +59,11 @@ const manifest: GameManifest = createManifest({
 });
 
 const files = {
+  "ada.json": "{}",
+  "ada.atlas": "",
   "one/intro.ink": `Hello. # speaker:ada # wear ada clothes/top/tank2
 >>> backdrop yard duration=0
+>>> color ada hair=blonde skin=reset eyes=3a7
 ~ coins += 5
 Coins: {coins}. Done? {completed("intro")}
 * [Be brave]
@@ -105,11 +117,16 @@ describe("GameSession", () => {
     expect(snapshot.stage.characters.ada).toMatchObject({
       visible: true,
       skin: ["body/ada", "clothes/top/tank2"],
+      colors: { skin: "#f5d8ab" },
     });
     expect(snapshot.stage.characters.ada.x).toBeLessThan(0);
 
     snapshot.controller!.advance();
     expect(session.getSnapshot().stage.backdrop).toEqual({ id: "yard", duration: 0 });
+    expect(session.getSnapshot().stage.characters.ada.colors).toEqual({
+      hair: "#c1b01c",
+      eyes: "#3a7",
+    });
     expect(text(session)).toBe("Coins: 5. Done? false");
     expect(session.getSnapshot().variables.coins).toBe(5);
 

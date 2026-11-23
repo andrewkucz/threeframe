@@ -1,4 +1,5 @@
 export * from "./assets";
+export * from "./colors";
 export * from "./skins";
 export * from "./SpineSprite";
 export type {

@@ -28,6 +28,8 @@ export interface StageCharacter {
   overlays: readonly string[];
   skin: readonly string[];
   attachments: Readonly<Record<string, string | null>>;
+  /** Colors by color group or slot name. */
+  colors: Readonly<Record<string, string>>;
   /** Draw order; higher is in front. */
   z: number;
   /** How the latest change animates. */
@@ -141,6 +143,7 @@ export function stageCharacter(
     overlays: [],
     skin: definition.skin ?? [],
     attachments: definition.attachments ?? {},
+    colors: definition.colors ?? {},
     z: 0,
     motion: { duration: 0, ease: "out" },
     ...overrides,
@@ -163,6 +166,7 @@ export function sceneStage(
       ...(carried && {
         skin: carried.skin,
         attachments: carried.attachments,
+        colors: carried.colors,
         tint: carried.tint,
       }),
       x: resolvePosition(manifest, member.at),

@@ -1777,6 +1777,14 @@ export const spineReference: PropDoc[] = [
     example: 'attachments={{ mouth: "frown", hat: null }}',
   },
   {
+    name: "colors",
+    type: "Record<string, string>",
+    defaultValue: "asset.colors ?? {}",
+    description:
+      "Colors by the asset's color group (or slot name), tinting the slots with a multiply or, for groups with gradient shading, Spine's two-color tint.",
+    example: 'colors={{ hair: "#c1b01c", skin: "#f3c98b" }}',
+  },
+  {
     name: "material",
     type: "SpineMaterialOptions",
     defaultValue: "{ alphaTest: 0.001, depthTest: true, depthWrite: false }",

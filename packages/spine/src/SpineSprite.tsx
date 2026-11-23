@@ -7,8 +7,9 @@ import { useFrame, type ThreeElements } from "@react-three/fiber";
 import { useAsset, useDisposable, type Asset } from "@threeframe/core";
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from "react";
 import { MeshBasicMaterial } from "three";
-import type { SpineAppearance, SpineAssetData } from "./assets";
-import { resolveSkin } from "./skins";
+import type { SpineAppearance, SpineAssetData, SpineRig } from "./assets";
+import { applySlotTints, slotTints, type SpineColors } from "./colors";
+import { hiddenSlots, resolveSkin } from "./skins";
 
 export interface SpineSpriteHandle {
   mesh: SkeletonMesh;
@@ -42,7 +43,7 @@ export interface SpineMaterialOptions {
 }
 export interface SpineSpriteProps extends Omit<ThreeElements["group"], "ref"> {
   /** A `spineAsset`, whose `skin`/`attachments` are used when the props are omitted. */
-  asset: Asset<SpineAssetData> & SpineAppearance;
+  asset: Asset<SpineAssetData> & SpineAppearance & SpineRig;
   /* Animation */
   /** Base animation on track 0. Omit to show the setup pose. */
   animation?: string;
@@ -69,6 +70,11 @@ export interface SpineSpriteProps extends Omit<ThreeElements["group"], "ref"> {
    * Defaults to the asset's `attachments`; pass `{}` for none.
    */
   attachments?: Readonly<Record<string, string | null>>;
+  /**
+   * Colors by the asset's color group (e.g. `{ hair: "#c1b01c" }`) or by slot name, replacing the
+   * slots' setup colors. Defaults to the asset's `colors`; animations keying a slot's color win.
+   */
+  colors?: SpineColors;
   flipX?: boolean;
   flipY?: boolean;
   tint?: string;
@@ -92,6 +98,7 @@ export const SpineSprite = forwardRef<SpineSpriteHandle, SpineSpriteProps>(funct
     mixes,
     skin = asset.skin,
     attachments = asset.attachments,
+    colors = asset.colors,
     flipX = false,
     flipY = false,
     tint = "#ffffff",
@@ -195,6 +202,11 @@ export const SpineSprite = forwardRef<SpineSpriteHandle, SpineSpriteProps>(funct
     [data, skinKey],
   );
   const attachmentKey = JSON.stringify(attachments ?? {});
+  const colorKey = JSON.stringify(colors ?? {});
+  const tints = useMemo(
+    () => slotTints(asset.colorGroups, JSON.parse(colorKey) as SpineColors),
+    [asset.colorGroups, colorKey],
+  );
   // Depends on `animation` because clearing it resets the setup pose, which drops the overrides.
   useEffect(() => {
     const { skeleton } = mesh;
@@ -204,8 +216,14 @@ export const SpineSprite = forwardRef<SpineSpriteHandle, SpineSpriteProps>(funct
       JSON.parse(attachmentKey) as Record<string, string | null>,
     ))
       skeleton.setAttachment(slot, name);
+    applySlotTints(skeleton, tints);
+    // Transparent rather than detached, so animations keying the attachment can't show it.
+    for (const name of hiddenSlots(asset.hides, JSON.parse(skinKey) as string[] | null)) {
+      const slot = skeleton.findSlot(name);
+      if (slot) slot.pose.color.a = 0;
+    }
     mesh.update(0);
-  }, [mesh, resolvedSkin, attachmentKey, animation]);
+  }, [mesh, resolvedSkin, skinKey, asset.hides, attachmentKey, tints, animation]);
   useEffect(() => {
     mesh.skeleton.scaleX = flipX ? -1 : 1;
     mesh.skeleton.scaleY = flipY ? -1 : 1;

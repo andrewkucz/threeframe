@@ -371,6 +371,20 @@ function SpriteActor({
     }
     return valid;
   }, [data, skin, attachmentKey, id]);
+  // Saves from before colors existed have none.
+  const colorKey = JSON.stringify(character.colors ?? {});
+  const colors = useMemo(() => {
+    const requested = JSON.parse(colorKey) as Record<string, string>;
+    const groups = asset.colorGroups ?? {};
+    const valid: Record<string, string> = {};
+    for (const [name, color] of Object.entries(requested)) {
+      if (!groups[name] && !data.findSlot(name)) warn(`${id}: no color group or slot "${name}"`);
+      else if (!/^#?([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(color))
+        warn(`${id}: invalid color "${color}" for ${name}`);
+      else valid[name] = color;
+    }
+    return valid;
+  }, [asset, data, colorKey, id]);
   const animation = (name: string | undefined) => {
     if (!name) return undefined;
     if (data.findAnimation(name)) return name;
@@ -483,6 +497,7 @@ function SpriteActor({
         asset={asset}
         skin={skin}
         attachments={attachments}
+        colors={colors}
         animation={base}
         loop={character.loop}
         queue={queue}

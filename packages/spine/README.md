@@ -32,6 +32,7 @@ Props react to changes:
 - `paused` (false), `timeScale` (1); animation advances in `useFrame`, with frame deltas capped at 0.1 seconds to prevent large background-tab jumps.
 - `skin`: one name, or several combined in order into one skin for mix-and-match outfits.
 - `attachments`: slot attachment overrides by slot name, `{ [slot]: placeholder | null }` (`null` hides the slot). Applied with `skeleton.setAttachment` after the skin's setup pose and reapplied when the skin changes; animations that key a slot still override it.
+- `colors`: `{ [group or slot]: hex }`, recoloring slots by the asset's `colorGroups` (see below). Reapplied with the attachments; animations that key a slot's color still override it.
 - `flipX`, `flipY`, `tint` (hex color), `opacity`.
 - `material`: `alphaTest` (0.001), `depthTest` (true), `depthWrite` (false), `toneMapped` (false), `twoColorTint` (true). Changing it rebuilds the mesh.
 - Standard R3F group props: position, scale, rotation, visibility, pointer events, etc.
@@ -71,6 +72,42 @@ const heroine = spineAsset({
   attachments: { mouth: "smile" },
 });
 ```
+
+## Hidden slots
+
+Some skins replace other parts, such as a gag covering the mouth. List them on the asset as `hides`, by skin name or skin folder; sprites wearing a matching skin draw those slots fully transparent, so animations that only swap the slot's attachment can't bring it back:
+
+```ts
+spineAsset({ skeleton, atlas, hides: { "accessories/gag": ["mouth"] } });
+```
+
+`hiddenSlots(hides, skins)` lists the slots hidden for a set of skins.
+
+## Colors
+
+Skins swap shapes; colors are separate. A `spineAsset` lists named `colorGroups`, each tinting some slots, and sprites choose colors by group name (or by slot name for any other slot):
+
+```tsx
+const heroine = spineAsset({
+  skeleton: "/assets/heroine.json",
+  atlas: "/assets/heroine.atlas",
+  colorGroups: {
+    skin: { slots: ["torso", "head"], default: "#f5d8ab", presets: { tan: "#f3c98b" } },
+    hair: {
+      slots: ["hair", "fringe"],
+      presets: { blonde: "#c1b01c" },
+      gradient: { mid: 0.35, range: 50 },
+    },
+  },
+});
+
+<SpineSprite asset={heroine} colors={{ skin: "#f3c98b", hair: "#2e1a0e" }} />;
+```
+
+- **Multiply** (no `gradient`): the color multiplies the art. Draw flat-colored parts in white with black outlines and they take any color.
+- **Gradient**: for shaded art with highlights. Draw it in grays, with the base color at gray `mid` and lightness (CIE L\*) changing by `range` across grays 0–1, and enable "Tint black" on the slots in Spine. `colorTint(color, group)` picks the two-color tint's light and dark colors so gray `mid` draws exactly `color` and the shading keeps its contrast. Keep outlines and details that shouldn't change color in a separate, untinted slot above.
+
+Groups with a `default` apply when nothing is chosen. `presets` are named choices for pickers. `slotTints(groups, colors)` and `applySlotTints(skeleton, tints)` do the same for imperative use; like the attachments, tints are lost whenever the slots return to the setup pose.
 
 `resolveSkin(data, names)` returns the same runtime `Skin` the sprite uses (default skin, a single skin, or a new combined skin) for imperative use with `mesh.skeleton.setSkin`. Removing an overlay track mixes it out to an empty animation, so slots and bones it keyed return to the setup pose.
 

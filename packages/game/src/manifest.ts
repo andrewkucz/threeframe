@@ -4,6 +4,8 @@ import type { Condition } from "./conditions";
 export const MANIFEST_FILE = "game.json";
 export const MANIFEST_FORMAT = "threeframe.game";
 export const MANIFEST_VERSION = 1;
+const COLOR = /^#?([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
+const isColor = (value: unknown) => typeof value === "string" && COLOR.test(value);
 
 export type StateValue = number | boolean | string;
 
@@ -29,6 +31,20 @@ export interface SpriteDefinition {
   format?: "json" | "binary";
   /** Scale applied while reading the skeleton. */
   scale?: number;
+  /**
+   * Recolorable parts, by name (`hair`, `skin`, …): the slots each tints, its default color, named
+   * presets, and optional gradient shading for grayscale art (see `@threeframe/spine`).
+   */
+  colorGroups?: Readonly<Record<string, SpriteColorGroup>>;
+  /** Slots hidden while a skin, or any skin in a folder, is worn: `{ "accessories/gag": ["mouth"] }`. */
+  hides?: Readonly<Record<string, readonly string[]>>;
+}
+export interface SpriteColorGroup {
+  slots: readonly string[];
+  default?: string;
+  presets?: Readonly<Record<string, string>>;
+  /** Grayscale art: the gray (0–1) the chosen color lands on, and the L* range from 0 to 1. */
+  gradient?: { mid: number; range: number };
 }
 
 export interface CharacterManifest {
@@ -44,6 +60,8 @@ export interface CharacterManifest {
   outfits?: Readonly<Record<string, readonly string[]>>;
   /** Slot attachment overrides; `null` hides a slot. */
   attachments?: Readonly<Record<string, string | null>>;
+  /** Starting colors by the sprite's color group (or slot name), e.g. `{ hair: "#c1b01c" }`. */
+  colors?: Readonly<Record<string, string>>;
   /** Looping idle animation. */
   animation?: string;
   /** On-stage scale. */
@@ -268,7 +286,37 @@ export function validateManifest(value: unknown, files?: readonly string[]): Man
       else {
         file(character.sprite.skeleton as string, `${at}.sprite.skeleton`);
         file(character.sprite.atlas as string, `${at}.sprite.atlas`);
+        const hides = character.sprite.hides;
+        if (
+          hides !== undefined &&
+          (!isRecord(hides) ||
+            !Object.values(hides).every(
+              (slots) => Array.isArray(slots) && slots.every((slot) => typeof slot === "string"),
+            ))
+        )
+          error(`${at}.sprite.hides`, "Expected { skin-or-folder: [slot, ...] }.");
+        const groups = character.sprite.colorGroups;
+        if (groups !== undefined && !isRecord(groups))
+          error(`${at}.sprite.colorGroups`, "Expected an object.");
+        for (const [name, group] of Object.entries(isRecord(groups) ? groups : {})) {
+          const gat = `${at}.sprite.colorGroups.${name}`;
+          if (!isRecord(group) || !Array.isArray(group.slots))
+            error(gat, "Expected { slots: [...] }.");
+          else if (group.default !== undefined && !isColor(group.default))
+            error(`${gat}.default`, "Expected a hex color.");
+          else
+            for (const [preset, color] of Object.entries(
+              isRecord(group.presets) ? group.presets : {},
+            ))
+              if (!isColor(color)) error(`${gat}.presets.${preset}`, "Expected a hex color.");
+        }
       }
+    }
+    if (character.colors !== undefined) {
+      if (!isRecord(character.colors)) error(`${at}.colors`, "Expected { group: color }.");
+      else
+        for (const [name, color] of Object.entries(character.colors))
+          if (!isColor(color)) error(`${at}.colors.${name}`, "Expected a hex color.");
     }
   }
 

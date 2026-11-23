@@ -48,9 +48,15 @@ Loading validates the manifest and, for enumerable sources, that every reference
     "ada": {
       "name": "Ada",
       "color": "#eabd78",
-      "sprite": { "skeleton": "characters/ada/ada.json", "atlas": "characters/ada/ada.atlas" },
+      "sprite": {
+        "skeleton": "characters/ada/ada.json",
+        "atlas": "characters/ada/ada.atlas",
+        "colorGroups": { "hair": { "slots": ["hair"], "presets": { "blonde": "#c1b01c" } } },
+        "hides": { "accessories/gag": ["mouth"] }, // slots hidden while a skin (folder) is worn
+      },
       "skin": ["body/ada", "clothes/top/shirt1"], // combined in export order
       "outfits": { "gala": ["body/ada", "clothes/top/dress2"] },
+      "colors": { "hair": "#2e1a0e" }, // by the sprite's colorGroups (see @threeframe/spine)
       "animation": "idle",
     },
   },
@@ -126,6 +132,7 @@ Grammar: `name positional… key=value… flag…`; quote values with spaces. In
 | `overlay <char> <anim…\|none>`                                                       | Blends looping animations on upper tracks           |
 | `wear` / `remove` / `outfit <char> …`                                                | Mix-and-match skins by editor folder; named outfits |
 | `attach <char> <slot> <name\|none\|reset>`                                           | Slot attachment override                            |
+| `color <char> <group>=<preset\|color\|reset>...`                                     | Recolor parts by the sprite's color groups          |
 | `face <char> left\|right\|flip`, `tint <char> <color>`                               | Facing and color                                    |
 | `camera [zoom] [x] [y] [focus=char] [duration]`, `camera reset`                      | Pans and zooms                                      |
 | `shake`, `flash [color]`, `fade out\|in [color]`, `vignette <0–1>`                   | Screen effects                                      |

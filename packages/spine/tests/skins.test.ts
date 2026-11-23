@@ -1,7 +1,7 @@
 import { AtlasAttachmentLoader, SkeletonJson, TextureAtlas } from "@esotericsoftware/spine-threejs";
 import { describe, expect, it } from "vite-plus/test";
 import { spineAsset } from "../src/assets";
-import { resolveSkin, skinFolders, skinNames, slotAttachments } from "../src/skins";
+import { hiddenSlots, resolveSkin, skinFolders, skinNames, slotAttachments } from "../src/skins";
 
 const point = { type: "point" };
 const data = new SkeletonJson(new AtlasAttachmentLoader(new TextureAtlas(""))).readSkeletonData({
@@ -92,5 +92,18 @@ describe("spineAsset appearance defaults", () => {
     expect(dressed.skin).toEqual(["hats/cap"]);
     expect(dressed.attachments).toEqual({ mouth: null });
     expect(plain.skin).toBeUndefined();
+  });
+});
+
+describe("hiddenSlots", () => {
+  const hides = { "hats/crown": ["hair"], outfits: ["body", "arms"], "hats/cap/": ["hair"] };
+  it("matches skins by full name or folder", () => {
+    expect(hiddenSlots(hides, ["hats/crown"])).toEqual(["hair"]);
+    expect(hiddenSlots(hides, ["base", "outfits/summer/shorts"])).toEqual(["body", "arms"]);
+    expect(hiddenSlots(hides, "hats/cap/red")).toEqual(["hair"]);
+  });
+  it("hides nothing for other skins", () => {
+    expect(hiddenSlots(hides, ["hats/crowned", "outfitsx"])).toEqual([]);
+    expect(hiddenSlots(undefined, ["hats/crown"])).toEqual([]);
   });
 });

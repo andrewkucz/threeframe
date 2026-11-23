@@ -15,6 +15,8 @@ import {
   type Asset,
   type FileSource,
 } from "@threeframe/core";
+import type { SpineColorGroups, SpineColors } from "./colors";
+import type { SpineSlotHides } from "./skins";
 
 /** Appearance a `SpineSprite` starts with when it doesn't set its own. */
 export interface SpineAppearance {
@@ -22,8 +24,21 @@ export interface SpineAppearance {
   skin?: string | readonly string[];
   /** Slot attachment overrides by slot name; `null` hides the slot. */
   attachments?: Readonly<Record<string, string | null>>;
+  /** Chosen colors by color group (see `colorGroups`) or slot name. */
+  colors?: SpineColors;
 }
-export interface SpineSource extends SpineAppearance {
+/** How a skeleton's parts relate, shared by every sprite of an asset. */
+export interface SpineRig {
+  /** Recolorable parts, which `colors` refer to by name. */
+  colorGroups?: SpineColorGroups;
+  /**
+   * Slots hidden while a skin is worn, by skin name or skin folder, e.g. a gag hiding the mouth:
+   * `{ "accessories/gag": ["mouth"] }`. Hidden slots stay hidden during animations that only key
+   * their attachment.
+   */
+  hides?: SpineSlotHides;
+}
+export interface SpineSource extends SpineAppearance, SpineRig {
   skeleton: string;
   atlas: string;
   format?: "json" | "binary";
@@ -39,10 +54,9 @@ export interface SpineAssetData {
   atlas: TextureAtlas;
 }
 /**
- * Loads skeleton data and its atlas. The appearance defaults are not part of the cache key, so
- * assets that differ only in `skin`/`attachments` share one load.
+ * Loads skeleton data and its atlas. The appearance defaults and rig are not part of the cache key, so assets that differ only in `skin`/`attachments`/`colors` share one load.
  */
-export interface SpineAsset extends Asset<SpineAssetData>, SpineAppearance {}
+export interface SpineAsset extends Asset<SpineAssetData>, SpineAppearance, SpineRig {}
 
 async function loadImage(blob: Blob, signal: AbortSignal) {
   const url = URL.createObjectURL(blob);
@@ -65,10 +79,16 @@ export function spineAsset({
   source,
   skin,
   attachments,
+  colors,
+  colorGroups,
+  hides,
 }: SpineSource): SpineAsset {
   return {
     skin,
     attachments,
+    colors,
+    colorGroups,
+    hides,
     key: `spine:${format}:${scale}:${sourceKey(source)}${skeleton}:${atlas}`,
     async load(signal) {
       const readSkeleton = async (): Promise<string | ArrayBuffer> => {

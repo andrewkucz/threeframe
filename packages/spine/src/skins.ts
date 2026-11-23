@@ -108,3 +108,21 @@ export function slotAttachments(
     };
   });
 }
+
+/** Slot names to hide, by the skin name or skin folder that hides them. */
+export type SpineSlotHides = Readonly<Record<string, readonly string[]>>;
+
+/** The slots `hides` hides for the worn skins (matched by full name or by folder). */
+export function hiddenSlots(
+  hides: SpineSlotHides | undefined,
+  skin: string | readonly string[] | null | undefined,
+): string[] {
+  const names = skinNames(skin);
+  const hidden = new Set<string>();
+  for (const [key, slots] of Object.entries(hides ?? {})) {
+    const folder = `${key.replace(/\/$/, "")}/`;
+    if (names.some((name) => name === key || name.startsWith(folder)))
+      for (const slot of slots) hidden.add(slot);
+  }
+  return [...hidden];
+}
