@@ -14,7 +14,7 @@ Open http://localhost:5173. Click dialogue to reveal/advance, or focus the playe
 ```sh
 vp check             # formatting, lint, and type checking
 vp test              # package and example-generation regression tests
-vp run build         # all four libraries (ESM + declarations), then the demo
+vp run build         # all five libraries (ESM + declarations), then the demo
 vp run ready         # all of the above
 ```
 
@@ -27,9 +27,10 @@ Node 22.18+ and Vite+ are required. `vp run dev` invokes the workspace script; `
 | [`@threeframe/core`](packages/core/README.md)     | Asset ownership, loading, orthographic scenes, measured text | `AssetStore`, `AssetProvider`, `SceneCanvas`, `Camera2D`, `Backdrop`, `CanvasPanel`    |
 | [`@threeframe/ink`](packages/ink/README.md)       | Ink runtime, state, native scene dialogue                    | `InkStory`, `InkController`, `InkProvider`, `InkDialogue`, `DialogueBox`, `compileInk` |
 | [`@threeframe/spine`](packages/spine/README.md)   | Spine 4.3 assets and independent animated sprites            | `spineAsset`, `SpineSprite`                                                            |
-| [`@threeframe/engine`](packages/engine/README.md) | Complete game loading and playback                           | `NarrativeGame`, `GameStage`, `GameDefinition`                                         |
+| [`@threeframe/game`](packages/game/README.md)     | Headless game packages, levels, scenes, directives, saves    | `loadGamePackage`, `GameSession`, `SaveStore`, `parseDirective`, `lintScript`          |
+| [`@threeframe/engine`](packages/engine/README.md) | Complete game loading and playback                           | `GamePlayer`, `StageView`, `NarrativeGame`, `GameDefinition`                           |
 
-The dependency direction is `core → ink/spine → engine`. Each layer can be used independently. React 19, R3F 9, and Three 0.184 are the shared peers. Spine is pinned to 4.3.13; its declared Three peer range excludes 0.185 and newer.
+The dependency direction is `core → ink/spine → game → engine` (`game` depends on `core` and `ink` only, and renders nothing). Each layer can be used independently. React 19, R3F 9, and Three 0.184 are the shared peers. Spine is pinned to 4.3.13; its declared Three peer range excludes 0.185 and newer.
 
 ## Your first game
 

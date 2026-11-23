@@ -31,6 +31,7 @@ Props react to changes:
 - `mixDuration` (0.2 seconds) and `mixes`: `[from, to, seconds][]` per-transition blend times.
 - `paused` (false), `timeScale` (1); animation advances in `useFrame`, with frame deltas capped at 0.1 seconds to prevent large background-tab jumps.
 - `skin`: one name, or several combined in order into one skin for mix-and-match outfits.
+- `attachments`: slot attachment overrides by slot name, `{ [slot]: placeholder | null }` (`null` hides the slot). Applied with `skeleton.setAttachment` after the skin's setup pose and reapplied when the skin changes; animations that key a slot still override it.
 - `flipX`, `flipY`, `tint` (hex color), `opacity`.
 - `material`: `alphaTest` (0.001), `depthTest` (true), `depthWrite` (false), `toneMapped` (false), `twoColorTint` (true). Changing it rebuilds the mesh.
 - Standard R3F group props: position, scale, rotation, visibility, pointer events, etc.
@@ -43,6 +44,35 @@ sprite.current?.queue("idle", true, 0); // play after the jump
 sprite.current?.play("shoot", false, 1); // independent overlay track
 sprite.current?.clear(1, 0.2); // mix overlay out
 ```
+
+### Loading from a file source
+
+`spineAsset({ skeleton, atlas, source })` reads the skeleton, the atlas and its page images through a core `FileSource` (plain URLs by default). Page images resolve relative to the atlas, as in the Spine runtime, so exports packed into an archive or held in memory load unchanged. The loaded value is `{ data, atlas }`; disposing it releases the atlas textures.
+
+## Skins and attachments
+
+Name skins with editor folders (`clothes/top/shirt1`, `clothes/bottom/skirt1`, …) and combine one per folder for mix-and-match outfits, as the Spine runtime guide recommends. The default skin is always the fallback, so it never needs to be listed.
+
+```tsx
+const data = useSpineData(character); // SkeletonData, through Suspense
+const folders = skinFolders(data); // [{ path: "clothes/top", label: "top", skins: [{ name, label }] }, …]
+const slots = slotAttachments(data, outfit); // [{ slot, bone, setup, attachments: [...] }, …]
+
+<SpineSprite asset={character} skin={outfit} attachments={{ mouth: "mouth2", hat: null }} />;
+```
+
+A `spineAsset` can carry the appearance sprites start with, which they use when they omit `skin`/`attachments` (pass `[]`/`{}` to opt out). These defaults are not part of the cache key, so variants of one skeleton share a single load:
+
+```ts
+const heroine = spineAsset({
+  skeleton: "/assets/heroine.json",
+  atlas: "/assets/heroine.atlas",
+  skin: ["body/base", "clothes/top/shirt1"],
+  attachments: { mouth: "smile" },
+});
+```
+
+`resolveSkin(data, names)` returns the same runtime `Skin` the sprite uses (default skin, a single skin, or a new combined skin) for imperative use with `mesh.skeleton.setSkin`. Removing an overlay track mixes it out to an empty animation, so slots and bones it keyed return to the setup pose.
 
 Declarative `animation`/`queue` changes override track 0, and `tracks` own tracks 1…n. An imperative animation persists until the relevant declarative props change. Higher tracks remain available through the handle or the raw mesh/state. Removing the `animation` prop resets to the setup pose. Invalid animation/skin names are reported by the runtime; wrap standalone scenes in an error boundary.
 

@@ -13,12 +13,39 @@ export interface NarrativeSnapshot {
   tags: readonly string[];
   speaker: string | null;
   choices: readonly NarrativeChoice[];
-  status: "idle" | "playing" | "choice" | "ended";
+  /** `waiting` while an asynchronous command line runs; the previous passage stays displayed. */
+  status: "idle" | "playing" | "choice" | "waiting" | "ended";
+}
+/**
+ * A command line: Ink output starting with the command prefix (`>>>` by default), such as
+ * `>>> show ada at=left`. Commands are never displayed; they run in story order between passages.
+ */
+export interface InkCommand {
+  /** The line without its prefix, trimmed. */
+  text: string;
+  /** Tags on the command line itself. */
+  tags: readonly string[];
+}
+/**
+ * Runs a command. Return a promise to hold the story until it settles: the controller reports
+ * `waiting` and continues on its own afterwards.
+ */
+export type InkCommandHandler = (command: InkCommand) => void | PromiseLike<unknown>;
+export interface InkControllerOptions {
+  storyId?: string;
+  configure?: (story: Story) => void;
+  /** Prefix that marks command lines. `false` displays every line. Defaults to `">>>"`. */
+  commandPrefix?: string | false;
+  /** Runs command lines; without it, commands are only reported as events and skipped. */
+  onCommand?: InkCommandHandler;
 }
 export type NarrativeEvent =
   | { type: "line"; snapshot: NarrativeSnapshot }
   | { type: "tags"; tags: readonly string[] }
   | { type: "choice"; choice: NarrativeChoice }
+  | { type: "command"; command: InkCommand }
+  /** An asynchronous command failed; the story continues regardless. */
+  | { type: "error"; error: Error }
   | { type: "end" }
   | { type: "reset" }
   | { type: "restore" };
@@ -41,6 +68,11 @@ export class InkController {
   readonly storyId: string;
   private listeners = new Set<() => void>();
   private eventListeners = new Set<(event: NarrativeEvent) => void>();
+  private commandPrefix: string | false;
+  /** Replaceable so hosts can wire commands after construction. */
+  onCommand: InkCommandHandler | undefined;
+  /** Bumped whenever pending command continuations become stale (restart, restore, jump). */
+  private generation = 0;
   private snapshot: NarrativeSnapshot = {
     revision: 0,
     lineId: 0,
@@ -51,10 +83,9 @@ export class InkController {
     status: "idle",
   };
 
-  constructor(
-    compiled: CompiledStory,
-    options: { storyId?: string; configure?: (story: Story) => void } = {},
-  ) {
+  constructor(compiled: CompiledStory, options: InkControllerOptions = {}) {
+    this.commandPrefix = options.commandPrefix ?? ">>>";
+    this.onCommand = options.onCommand;
     this.story = typeof compiled === "string" ? new Story(compiled) : new Story(compiled);
     this.storyId =
       options.storyId ??
@@ -95,14 +126,47 @@ export class InkController {
   };
 
   advance = () => {
-    if (this.snapshot.status === "ended" || this.story.currentChoices.length) return;
-    const tags: string[] = [];
+    const { status } = this.snapshot;
+    if (status === "ended" || status === "waiting" || this.story.currentChoices.length) return;
+    this.continueStory([]);
+  };
+
+  /** Whether a line is a command line under the current prefix. */
+  isCommand(line: string) {
+    return this.commandPrefix !== false && line.trimStart().startsWith(this.commandPrefix);
+  }
+
+  private continueStory(tags: string[]) {
     let text = "";
     let steps = 0;
     while (this.story.canContinue && !text) {
       if (++steps > 10000) throw new Error("Ink produced too many empty lines in one advance.");
-      text = (this.story.Continue() ?? "").trim();
-      tags.push(...(this.story.currentTags ?? []));
+      const line = (this.story.Continue() ?? "").trim();
+      const lineTags = this.story.currentTags ?? [];
+      if (this.commandPrefix !== false && line.startsWith(this.commandPrefix)) {
+        const command = { text: line.slice(this.commandPrefix.length).trim(), tags: [...lineTags] };
+        this.emit({ type: "command", command });
+        const pending = this.onCommand?.(command);
+        if (pending && typeof pending.then === "function") {
+          const generation = this.generation;
+          this.update({ status: "waiting" });
+          const resume = () => {
+            if (generation === this.generation && this.snapshot.status === "waiting")
+              this.continueStory(tags);
+          };
+          pending.then(resume, (reason: unknown) => {
+            this.emit({
+              type: "error",
+              error: reason instanceof Error ? reason : new Error(String(reason)),
+            });
+            resume();
+          });
+          return;
+        }
+        continue;
+      }
+      text = line;
+      tags.push(...lineTags);
     }
     const speakerTag = tags.findLast((tag) => tag.startsWith("speaker:"));
     const choices = this.choices();
@@ -118,22 +182,25 @@ export class InkController {
     if (tags.length) this.emit({ type: "tags", tags });
     if (text) this.emit({ type: "line", snapshot: this.snapshot });
     if (status === "ended") this.emit({ type: "end" });
-  };
+  }
 
   choose = (index: number) => {
     const choice = this.choices().find((value) => value.index === index);
     if (!choice) throw new Error(`Choice ${index} is not available.`);
+    if (this.snapshot.status === "waiting") return;
     this.story.ChooseChoiceIndex(index);
     this.emit({ type: "choice", choice });
     this.advance();
   };
 
   jump = (path: string) => {
+    this.generation++;
     this.story.ChoosePathString(path);
     this.update({ status: "playing" });
     this.advance();
   };
   restart = () => {
+    this.generation++;
     this.story.ResetState();
     this.update({ status: "idle", text: "", tags: [], choices: [], speaker: null });
     this.emit({ type: "reset" });
@@ -185,10 +252,11 @@ export class InkController {
       !Array.isArray(save.display.tags) ||
       !save.display.tags.every((tag) => typeof tag === "string") ||
       !(save.display.speaker === null || typeof save.display.speaker === "string") ||
-      !["idle", "playing", "choice", "ended"].includes(save.display.status)
+      !["idle", "playing", "choice", "waiting", "ended"].includes(save.display.status)
     ) {
       throw new Error("This save is invalid or belongs to a different story.");
     }
+    this.generation++;
     const previous = this.story.state.ToJson();
     try {
       this.story.state.LoadJson(save.ink);
@@ -203,5 +271,7 @@ export class InkController {
       lineId: this.snapshot.lineId + 1,
     });
     this.emit({ type: "restore" });
+    // A save taken while a command ran resumes after it; the command itself already happened.
+    if (save.display.status === "waiting") this.continueStory([]);
   };
 }

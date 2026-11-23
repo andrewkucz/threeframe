@@ -715,7 +715,12 @@ export const InkDialogue = forwardRef<DialogueHandle, InkDialogueProps>(function
       onError(reason instanceof Error ? reason : new Error(String(reason)));
     }
   };
-  if (snapshot.status === "idle" || snapshot.status === "ended") return null;
+  if (
+    snapshot.status === "idle" ||
+    snapshot.status === "ended" ||
+    (snapshot.status === "waiting" && !snapshot.text)
+  )
+    return null;
   return (
     <DialogueBox
       key={snapshot.lineId}

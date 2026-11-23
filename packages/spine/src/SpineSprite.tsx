@@ -1,6 +1,5 @@
 import {
   SkeletonMesh,
-  Skin,
   type AnimationStateListener,
   type TrackEntry,
 } from "@esotericsoftware/spine-threejs";
@@ -8,7 +7,8 @@ import { useFrame, type ThreeElements } from "@react-three/fiber";
 import { useAsset, useDisposable, type Asset } from "@threeframe/core";
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from "react";
 import { MeshBasicMaterial } from "three";
-import type { SpineAssetData } from "./assets";
+import type { SpineAppearance, SpineAssetData } from "./assets";
+import { resolveSkin } from "./skins";
 
 export interface SpineSpriteHandle {
   mesh: SkeletonMesh;
@@ -41,7 +41,8 @@ export interface SpineMaterialOptions {
   twoColorTint?: boolean;
 }
 export interface SpineSpriteProps extends Omit<ThreeElements["group"], "ref"> {
-  asset: Asset<SpineAssetData>;
+  /** A `spineAsset`, whose `skin`/`attachments` are used when the props are omitted. */
+  asset: Asset<SpineAssetData> & SpineAppearance;
   /* Animation */
   /** Base animation on track 0. Omit to show the setup pose. */
   animation?: string;
@@ -57,8 +58,17 @@ export interface SpineSpriteProps extends Omit<ThreeElements["group"], "ref"> {
   /** Per-transition blend times, as `[from, to, seconds]`. */
   mixes?: readonly (readonly [from: string, to: string, seconds: number])[];
   /* Appearance */
-  /** One skin, or several combined in order (for mix-and-match outfits). */
+  /**
+   * One skin, or several combined in order (for mix-and-match outfits). Defaults to the asset's
+   * `skin`, then the default skin; pass `[]` for the default skin explicitly.
+   */
   skin?: string | readonly string[];
+  /**
+   * Slot attachment overrides by slot name, applied over the skin's setup pose: an attachment
+   * (placeholder) name to show, or `null` to hide the slot. Animations keying a slot still win.
+   * Defaults to the asset's `attachments`; pass `{}` for none.
+   */
+  attachments?: Readonly<Record<string, string | null>>;
   flipX?: boolean;
   flipY?: boolean;
   tint?: string;
@@ -80,7 +90,8 @@ export const SpineSprite = forwardRef<SpineSpriteHandle, SpineSpriteProps>(funct
     timeScale = 1,
     mixDuration = 0.2,
     mixes,
-    skin,
+    skin = asset.skin,
+    attachments = asset.attachments,
     flipX = false,
     flipY = false,
     tint = "#ffffff",
@@ -174,28 +185,27 @@ export const SpineSprite = forwardRef<SpineSpriteHandle, SpineSpriteProps>(funct
     });
     mesh.update(0);
     return () => {
-      parsed.forEach((_, i) => mesh.state.clearTrack(i + 1));
+      // Mixing out to an empty animation returns keyed bones and slots to the setup pose.
+      parsed.forEach((_, i) => mesh.state.setEmptyAnimation(i + 1, mesh.state.data.defaultMix));
     };
   }, [mesh, trackKey]);
   const skinKey = JSON.stringify(skin ?? null);
+  const resolvedSkin = useMemo(
+    () => resolveSkin(data, JSON.parse(skinKey) as string | string[] | null),
+    [data, skinKey],
+  );
+  const attachmentKey = JSON.stringify(attachments ?? {});
+  // Depends on `animation` because clearing it resets the setup pose, which drops the overrides.
   useEffect(() => {
-    const names = JSON.parse(skinKey) as string | string[] | null;
-    const list = names === null ? [] : Array.isArray(names) ? names : [names];
-    const find = (name: string) => {
-      const found = data.findSkin(name);
-      if (!found) throw new Error(`Unknown Spine skin: ${name}`);
-      return found;
-    };
-    if (!list.length) mesh.skeleton.setSkin(data.defaultSkin);
-    else if (list.length === 1) mesh.skeleton.setSkin(find(list[0]));
-    else {
-      const combined = new Skin(list.join("+"));
-      for (const name of list) combined.addSkin(find(name));
-      mesh.skeleton.setSkin(combined);
-    }
-    mesh.skeleton.setupPoseSlots();
+    const { skeleton } = mesh;
+    skeleton.setSkin(resolvedSkin);
+    skeleton.setupPoseSlots();
+    for (const [slot, name] of Object.entries(
+      JSON.parse(attachmentKey) as Record<string, string | null>,
+    ))
+      skeleton.setAttachment(slot, name);
     mesh.update(0);
-  }, [mesh, data, skinKey]);
+  }, [mesh, resolvedSkin, attachmentKey, animation]);
   useEffect(() => {
     mesh.skeleton.scaleX = flipX ? -1 : 1;
     mesh.skeleton.scaleY = flipY ? -1 : 1;

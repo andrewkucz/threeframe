@@ -1,3 +1,5 @@
+import { httpSource, type FileSource } from "./files";
+
 export interface Asset<T = unknown> {
   /** A stable, globally unique key within this store. Include load options in it. */
   key: string;
@@ -126,21 +128,32 @@ export class AssetStore {
   }
 }
 
-export async function fetchAsset(url: string, signal: AbortSignal) {
-  const response = await fetch(url, { signal });
+/** Asset-key prefix for a source: empty for plain URLs, so existing keys stay stable. */
+export const sourceKey = (source: FileSource | undefined) =>
+  !source || source === httpSource ? "" : `${source.id}|`;
+
+export async function fetchAsset(
+  url: string,
+  signal: AbortSignal,
+  source: FileSource = httpSource,
+) {
+  const response = await source.fetch(url, signal);
   if (!response.ok) throw new Error(`Could not load ${url}: HTTP ${response.status}`);
   return response;
 }
 
-export function textAsset(url: string): Asset<string> {
-  return { key: `text:${url}`, load: async (signal) => (await fetchAsset(url, signal)).text() };
+export function textAsset(url: string, source?: FileSource): Asset<string> {
+  return {
+    key: `text:${sourceKey(source)}${url}`,
+    load: async (signal) => (await fetchAsset(url, signal, source)).text(),
+  };
 }
 
-export function jsonAsset<T = unknown>(url: string): Asset<T> {
+export function jsonAsset<T = unknown>(url: string, source?: FileSource): Asset<T> {
   return {
-    key: `json:${url}`,
+    key: `json:${sourceKey(source)}${url}`,
     load: async (signal) => {
-      const response = await fetchAsset(url, signal);
+      const response = await fetchAsset(url, signal, source);
       try {
         return (await response.json()) as T;
       } catch (cause) {

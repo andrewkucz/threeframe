@@ -37,6 +37,21 @@ const audioBuffer: Asset<AudioBuffer> = {
 };
 ```
 
+## File sources
+
+Every factory takes an optional `FileSource` as its last argument, a read-only file system the asset loads from instead of plain URLs: `textAsset(path, source)`, `jsonAsset(path, source)`, `textureAsset(path, source)`, `fontAsset(family, path, descriptors, source)`. The source's `id` is part of each asset key.
+
+```ts
+import { memorySource, subSource, textureAsset, urlSource } from "@threeframe/core";
+
+const folder = urlSource("/games/harbor/"); // files under a base URL
+const files = memorySource({ "art/bg.png": blob, "notes.txt": "hi" }); // mutable, in memory
+const art = subSource(files, "art"); // a folder of another source
+textureAsset("bg.png", art);
+```
+
+A `FileSource` is `{ id, fetch(path, signal?) => Promise<Response>, list?() }`, so archives, IndexedDB, or a bundler's asset map fit the same shape. `httpSource` is the default. `memorySource` adds `files`, `write`, `remove` and `readText`; change its `id` (create a new one) when cached assets should notice changed contents. Path helpers: `normalizePath`, `joinPath`, `dirname`, `contentType`, `toBlob`.
+
 ## Scene primitives
 
 - `SceneCanvas`: R3F `Canvas` props plus every `Camera2D` prop and `background` (clear color; omit for a transparent canvas). Defaults to a flat, orthographic, 1280×720 scene with DPR capped at 2. Use the continuous render loop when animating Spine.

@@ -14,6 +14,14 @@ export interface Page extends PageHandle {
 
 export const pages: Page[] = [
   {
+    path: "game-player",
+    icon: "story",
+    label: "GamePlayer",
+    package: "game",
+    description: "Play a game package: levels, scenes, directives, state, menus, and saves.",
+    load: () => import("./pages/GamePlayerPage"),
+  },
+  {
     path: "narrative-game",
     icon: "story",
     label: "NarrativeGame",
@@ -50,7 +58,7 @@ export const overview: Page = {
   path: "",
   icon: "overview",
   label: "Overview",
-  description: "A React Three Fiber toolkit for 2D narrative games, split into four packages.",
+  description: "A React Three Fiber toolkit for 2D narrative games, split into five packages.",
   load: () => import("./pages/OverviewPage"),
 };
 export const notFound: PageHandle = {

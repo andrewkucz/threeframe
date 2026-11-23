@@ -1731,10 +1731,10 @@ export const spineControls: ControlSpec<SpineSettings>[] = [
 export const spineReference: PropDoc[] = [
   {
     name: "asset",
-    type: "Asset<SpineAssetData>",
+    type: "SpineAsset",
     defaultValue: "required",
     description:
-      "Skeleton and atlas descriptor from spineAsset; atlas page textures are loaded automatically.",
+      "Skeleton and atlas descriptor from spineAsset; atlas page textures are loaded automatically. Its skin and attachments are the defaults for those props.",
   },
   ...spineControls.filter((spec) => spec.key !== "previewBackground"),
   {
@@ -1765,8 +1765,16 @@ export const spineReference: PropDoc[] = [
   {
     name: "skin",
     type: "string | string[]",
-    defaultValue: "default skin",
+    defaultValue: "asset.skin ?? default skin",
     description: "Several names combine into one skin, in order, for mix-and-match outfits.",
+  },
+  {
+    name: "attachments",
+    type: "Record<string, string | null>",
+    defaultValue: "asset.attachments ?? {}",
+    description:
+      "Slot attachment overrides by slot name, applied over the skin's setup pose; null hides the slot.",
+    example: 'attachments={{ mouth: "frown", hat: null }}',
   },
   {
     name: "material",

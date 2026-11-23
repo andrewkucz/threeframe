@@ -1,8 +1,82 @@
 # @threeframe/engine
 
-A complete narrative player built from `@threeframe/core`, `@threeframe/ink`, and `@threeframe/spine`.
+Players built from `@threeframe/core`, `@threeframe/ink`, `@threeframe/spine` and `@threeframe/game`:
+
+- **`GamePlayer`** renders a `@threeframe/game` session: a whole game package with levels, scenes, directives, state, menus and saves. Use it for full games.
+- **`NarrativeGame`** plays a single Ink story with a `GameDefinition` (below), for simpler embeds.
+
+## GamePlayer
+
+```tsx
+import { GamePlayer, useGameSession } from "@threeframe/engine";
+import { loadGamePackage } from "@threeframe/game";
+
+const pkg = await loadGamePackage("/games/harbor.zip");
+
+function Game() {
+  const session = useGameSession(pkg); // created once per package, disposed on unmount
+  return <GamePlayer session={session} dialogue={{ speed: 40 }} />;
+}
+```
+
+The player preloads every character sprite and image backdrop in the package (with a progress screen), then shows the title screen. It renders the session's stage, animating every change toward the target state:
+
+- Backdrops cross-fade (images, solid colors and gradients).
+- Characters fade or slide in and out, move, tint, and animate. Skins, attachments and animations the sprite doesn't have are skipped with a warning, so a typo never crashes the game.
+- Camera pan, zoom and shake; full-screen fades and flashes; a vignette; GPU particle weather (`rain`, `snow`, `dust`, `petals`, `fireflies`, `embers`, or your own via `weatherPresets`).
+- Music and sound effects play from the package.
+
+Dialogue uses `InkDialogue` with the manifest's `dialogue` options, then the `dialogue` prop; speakers default to the characters' names and colors.
+
+The DOM layer has a title screen (continue, new game, load, credits), a HUD of variables marked `hud`, a menu button and Escape menu (resume, save, load, quit), save/load slots (autosave, overwrite, delete, export and import save files), level-complete cards, game over (retry level, load, title), a credits roll and an end screen. Space/Enter advance and 1–9 choose.
+
+Customize it with:
+
+- `ui`: replace any screen (`Title`, `PauseMenu`, `SaveLoad`, `LevelComplete`, `GameOver`, `Credits`, `Complete`, `Hud`, `MenuButton`), or pass `null` to drop one. Each screen gets `{ session, snapshot, labels, menu, openMenu, onError }`; the defaults are exported.
+- `labels`: every string, for localization (`defaultGameLabels`).
+- CSS variables on `.tf-game` (`--tf-game-accent`, `-bg`, `-fg`, `-muted`, `-card`, `-border`, `-font`, `-title-font`); `unstyled` drops the built-in stylesheet so your CSS owns the `tf-game-*` classes.
+- `effects`: renderers for custom one-shot effect types queued by custom directives. Each gets `{ effect, width, height, done }`.
+- `children` (R3F nodes inside the stage camera), `overlay` (DOM nodes over it), `audio` (`{ muted, volume }` or `false`), `keyboard`, `paused`, `store`, `onWarning`.
+
+For a different interface entirely, use the pieces: `StageView` (stage renderer, inside a `SceneCanvas`; `StageActors` exposes its live sprites), `CharacterSprite`, `CustomSceneView` and `CustomSceneOverlay`, `Weather`, `useGameSnapshot(session)`, `useSaveSlots(store)`, `useStageAudio(pkg, stage)`, `gameAssets(pkg)` and `Tween`.
 
 See the [root quick start](../../README.md#your-first-game) for a working definition.
+
+### Custom scenes
+
+`defineCustomScene` adds what a custom scene draws to its headless type (see `@threeframe/game`'s custom scenes): `Component` renders in the canvas inside the stage camera (above the cast; shake and zoom apply), `Overlay` renders DOM over it. Register definitions with the session; the player renders whichever scene is running.
+
+```tsx
+const lockpick = defineCustomScene<{ pins: number }>({
+  id: "lockpick",
+  props: { pins: { type: "number", default: 4, min: 1, max: 8 } },
+  outcomes: ["won", "lost"],
+  externals: ["reveal_pin()"],
+  knots: ["intro", "hint"],
+  Component({ props, scene }) {
+    const [picks, setPicks] = scene.useVariable<number>("picks"); // game state, reactive
+    const [lock, setLock] = scene.useSaved("lock", () => newLock(props.pins)); // saved and shared
+    const ada = scene.useCharacter("ada"); // directives plus her live sprite: ada.actor()
+    scene.useExternal("reveal_pin", () => setLock(reveal(lock)));
+    useEffect(() => void scene.dialogue("intro"), []);
+    async function fail() {
+      setPicks(picks - 1);
+      ada.play("gasp", { loop: false });
+      scene.directive("shake", [], { strength: 8 });
+      if (picks <= 1) scene.complete("lost");
+      else await scene.dialogue("hint"); // a full conversation, choices included
+    }
+    return <LockMeshes lock={lock} paused={scene.paused || scene.talking} onFail={fail} />;
+  },
+  Overlay: ({ scene }) => <button onClick={() => scene.complete("lost")}>Give up</button>,
+});
+
+const session = useGameSession(pkg, { customScenes: [lockpick] });
+```
+
+Both parts get `{ props, scene }`. The scene context has `paused` (menus) and `talking` (a conversation has the input), `dialogue`, `say`, `directive`, `wait`, `complete`, variables (`useVariable`, `getVariable`, `setVariable`), scene state shared by both parts (`useSceneState`, or `useSaved` to include it in saves; `restored` says the scene resumed from one), `useExternal`, `useCharacter`, `asset.texture/json/text(path)` descriptors for `useAsset`, and the stage size. Nested components reach it with `useCustomScene()`; `<SceneCharacter id x y animation />` draws a manifest character the scene positions itself.
+
+Keyboard: Space/Enter and number keys go to a conversation while one is on screen, and otherwise reach the scene. The DOM overlay ignores pointer events except on buttons, inputs, links and `[data-interactive]`, so the canvas below stays clickable. A component that throws shows the error screen, whose Retry restarts the scene.
 
 ## GameDefinition
 

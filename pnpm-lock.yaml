@@ -199,6 +199,9 @@ importers:
       '@threeframe/engine':
         specifier: workspace:*
         version: link:../../packages/engine
+      '@threeframe/game':
+        specifier: workspace:*
+        version: link:../../packages/game
       '@threeframe/ink':
         specifier: workspace:*
         version: link:../../packages/ink
@@ -269,6 +272,9 @@ importers:
       '@threeframe/core':
         specifier: workspace:*
         version: link:../core
+      '@threeframe/game':
+        specifier: workspace:*
+        version: link:../game
       '@threeframe/ink':
         specifier: workspace:*
         version: link:../ink
@@ -291,6 +297,40 @@ importers:
       react-dom:
         specifier: ^19.2.0
         version: 19.3.0(react@19.3.0)
+      three:
+        specifier: ^0.184.0
+        version: 0.184.0
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      vite-plus:
+        specifier: 'catalog:'
+        version: 1.0.0(@types/node@26.6.3)(@vitest/ui@5.0.1)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1)
+
+  packages/game:
+    dependencies:
+      '@threeframe/core':
+        specifier: workspace:*
+        version: link:../core
+      '@threeframe/ink':
+        specifier: workspace:*
+        version: link:../ink
+      fflate:
+        specifier: ^0.8.2
+        version: 0.8.3
+    devDependencies:
+      '@react-three/fiber':
+        specifier: ^9.8.1
+        version: 9.8.1(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(three@0.184.0)
+      '@types/react':
+        specifier: ^19.2.0
+        version: 19.3.0
+      '@types/three':
+        specifier: ^0.184.0
+        version: 0.184.1
+      react:
+        specifier: ^19.2.0
+        version: 19.3.0
       three:
         specifier: ^0.184.0
         version: 0.184.0

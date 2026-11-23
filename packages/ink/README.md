@@ -48,6 +48,7 @@ Controller methods:
 | `bindExternal(name, callback, lookaheadSafe?)`   | Bind a host function; returns unbind.                               |
 | `evaluate(name, args?)`                          | Evaluate an Ink function.                                           |
 | `save()` / `restore(save)`                       | Preserve the runtime and currently displayed passage.               |
+| `onCommand` / `isCommand(line)`                  | Handler for `>>>` command lines (see below).                        |
 | `onEvent(callback)` / `subscribe(callback)`      | Events or snapshot subscription, with unsubscribe.                  |
 | `refresh()`                                      | Notify views after direct changes through `.story`.                 |
 
@@ -55,7 +56,19 @@ Controller methods:
 
 `save()` returns a versioned object containing Ink JSON and display state. The compiled story fingerprint rejects incompatible saves. The controller does not own a renderer's page/reveal state; `NarrativeGame` additionally saves that, while standalone callers can use the dialogue ref's `save()` and `initialPlayback` on remount.
 
-`compileInk(source, compilerOptions?)` dynamically imports the Ink compiler. For `INCLUDE` files, supply an inkjs `CompilerOptions` with a file handler (such as `JsonFileHandler`), or compile ahead of time. `inkAsset(url, 'ink' | 'json')` and `inkSourceAsset(key, source, options?)` integrate with the core asset store. The latter keys by both name and source, so source edits do not return stale compiled content.
+`compileInk(source, options?)` dynamically imports the Ink compiler. Pass `{ includes, filename }` to resolve `INCLUDE`s from memory (like ink, every include resolves relative to the main file's folder); `readInkIncludes(source, filename, read)` gathers them transitively. An inkjs `CompilerOptions` still works for custom file handlers. `inkAsset(url, { format, source, globals })` loads `.ink` or compiled JSON through a core `FileSource`, including its includes, and `inkSourceAsset(key, source, options?)` compiles inline text; both integrate with the core asset store. The latter keys by both name and source, so source edits do not return stale compiled content.
+
+`declareInkGlobals(source, { variables, externals })` appends `VAR` and `EXTERNAL` declarations for host-provided globals that the story (or its includes) doesn't declare itself, so authors can use them directly. Appending keeps compiler line numbers matching the author's text.
+
+### Command lines
+
+Lines whose text starts with `>>>` are commands, not dialogue: the controller never displays them, emits a `command` event, and passes `{ text, tags }` to `onCommand` in story order, between passages. Return a promise from `onCommand` to hold the story; the snapshot reports `status: "waiting"` (the previous passage stays displayed; `InkDialogue` hides when there is none), `advance()` and `choose()` are ignored, and the story continues by itself when the promise settles. A rejected promise emits an `error` event and continues. Saves taken while waiting resume after the command. `commandPrefix` changes the prefix, or `false` displays every line.
+
+```ts
+const controller = new InkController(compiled, {
+  onCommand: ({ text }) => (text.startsWith("wait ") ? sleep(Number(text.slice(5))) : run(text)),
+});
+```
 
 ## Dialogue configuration
 

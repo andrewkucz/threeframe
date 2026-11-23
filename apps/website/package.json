@@ -12,6 +12,7 @@
     "@react-three/fiber": "^9.8.1",
     "@threeframe/core": "workspace:*",
     "@threeframe/engine": "workspace:*",
+    "@threeframe/game": "workspace:*",
     "@threeframe/ink": "workspace:*",
     "@threeframe/spine": "workspace:*",
     "react": "^19.2.0",

@@ -1,7 +1,7 @@
 {
   "name": "@threeframe/engine",
   "version": "0.1.0",
-  "description": "Composable 2D narrative games powered by Ink and React Three Fiber.",
+  "description": "Composable 2D narrative games powered by Ink and React Three Fiber: players, stages and menus.",
   "files": [
     "dist",
     "src",
@@ -22,6 +22,7 @@
   },
   "dependencies": {
     "@threeframe/core": "workspace:*",
+    "@threeframe/game": "workspace:*",
     "@threeframe/ink": "workspace:*",
     "@threeframe/spine": "workspace:*"
   },

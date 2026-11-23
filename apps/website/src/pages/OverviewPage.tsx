@@ -36,13 +36,24 @@ const packages = [
     ],
   },
   {
-    name: "engine",
-    summary: "A complete narrative game: scenes and characters driven by Ink tags.",
-    requires: ["core", "ink", "spine"],
-    page: "narrative-game",
+    name: "game",
+    summary: "Headless game packages: levels, scenes, directives, state, and saves.",
+    requires: ["core", "ink"],
+    page: "game-player",
     parts: [
-      ["Game", "NarrativeGame", "GameDefinition"],
-      ["Stage", "GameStage", "applyStageTags", "collectGameAssets"],
+      ["Packages", "loadGamePackage", "createGameArchive", "validateManifest"],
+      ["Play", "GameSession", "parseDirective", "lintScript"],
+      ["Saves", "SaveStore", "localStoragePersister", "parseSave"],
+    ],
+  },
+  {
+    name: "engine",
+    summary: "Complete players: game packages with menus, or a single Ink story.",
+    requires: ["core", "ink", "spine", "game"],
+    page: "game-player",
+    parts: [
+      ["Games", "GamePlayer", "StageView", "useGameSession"],
+      ["Stories", "NarrativeGame", "GameDefinition", "GameStage"],
     ],
   },
 ];
@@ -51,7 +62,8 @@ export default function OverviewPage() {
   return (
     <div className="overview">
       <p className="overview-flow">
-        <code>core</code> → <code>ink</code> · <code>spine</code> → <code>engine</code>
+        <code>core</code> → <code>ink</code> · <code>spine</code> → <code>game</code> →{" "}
+        <code>engine</code>
         <span>Each layer works on its own. Peers: React 19, R3F 9, Three 0.184.</span>
       </p>
       <div className="package-grid">
