@@ -20,7 +20,7 @@ const manifest: GameManifest = createManifest({
     ada: {
       name: "Ada",
       skin: ["body/ada", "clothes/top/shirt1"],
-      outfits: { gala: ["body/ada", "dress"] },
+      outfits: { gala: { skin: ["body/ada", "dress"], colors: { hair: "#000000" } } },
       colors: { skin: "#f5d8ab" },
       sprite: {
         skeleton: "ada.json",
@@ -158,6 +158,8 @@ describe("GameSession", () => {
     expect(session.getSnapshot().stage.characters.ada).toMatchObject({
       visible: false,
       skin: ["body/ada", "dress"],
+      // The outfit's colors apply over the character's own.
+      colors: { skin: "#f5d8ab", hair: "#000000" },
     });
     controller().advance();
     await until(() => session.getSnapshot().phase === "credits");

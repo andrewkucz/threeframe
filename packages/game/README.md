@@ -55,7 +55,10 @@ Loading validates the manifest and, for enumerable sources, that every reference
         "hides": { "accessories/gag": ["mouth"] }, // slots hidden while a skin (folder) is worn
       },
       "skin": ["body/ada", "clothes/top/shirt1"], // combined in export order
-      "outfits": { "gala": ["body/ada", "clothes/top/dress2"] },
+      "outfits": {
+        "gala": ["body/ada", "clothes/top/dress2"],
+        "night": { "skin": ["body/ada", "clothes/top/dress2"], "colors": { "top": "#1d2747" } },
+      },
       "colors": { "hair": "#2e1a0e" }, // by the sprite's colorGroups (see @threeframe/spine)
       "animation": "idle",
     },

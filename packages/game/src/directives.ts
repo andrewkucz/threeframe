@@ -1,4 +1,4 @@
-import type { GameManifest, StateValue } from "./manifest";
+import { outfitLook, type GameManifest, type StateValue } from "./manifest";
 import {
   removeSkins,
   resolvePosition,
@@ -302,6 +302,7 @@ export const builtinDirectives: readonly DirectiveDefinition[] = [
       const outfit = read.string("outfit");
       const named = outfit ? context.manifest.characters?.[id]?.outfits?.[outfit] : undefined;
       if (outfit && !named) throw new Error(`Unknown outfit for ${id}: ${outfit}`);
+      const look = named && outfitLook(named);
       updateCharacter(context, id, (current) => ({
         visible: true,
         ...(at !== undefined && at !== "wait" && at !== "flip"
@@ -310,7 +311,7 @@ export const builtinDirectives: readonly DirectiveDefinition[] = [
         ...(read.option("y") !== undefined && { y: read.number("y", 0) }),
         ...(read.option("scale") !== undefined && { scale: read.number("scale", 1) }),
         ...(read.option("anim") !== undefined && { animation: read.string("anim"), loop: true }),
-        ...(named && { skin: [...named] }),
+        ...(look && { skin: [...look.skin], colors: { ...current.colors, ...look.colors } }),
         ...(read.string("skin") && { skin: list(read.string("skin")) }),
         ...(read.flag("flip") && { flip: !current.flip }),
         ...(read.option("z") !== undefined && { z: read.number("z", current.z) }),
@@ -449,13 +450,18 @@ export const builtinDirectives: readonly DirectiveDefinition[] = [
     category: "character",
     usage: "outfit <character> <outfit-name | skin...>",
     description:
-      "Replaces every skin with a named outfit from the character, or with the listed skins.",
+      "Replaces every skin with a named outfit from the character (and sets its colors), or with the listed skins.",
     run(directive, context) {
       const id = requireCharacter(context, directive);
       const names = directiveReader(directive).rest(1);
       const named =
         names.length === 1 ? context.manifest.characters?.[id]?.outfits?.[names[0]] : undefined;
-      updateCharacter(context, id, () => ({ skin: named ? [...named] : names }));
+      const look = named && outfitLook(named);
+      updateCharacter(context, id, (current) =>
+        look
+          ? { skin: [...look.skin], colors: { ...current.colors, ...look.colors } }
+          : { skin: names },
+      );
     },
     check: (directive, manifest) => checkCharacter(directive, manifest),
   },

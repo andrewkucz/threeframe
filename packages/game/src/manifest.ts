@@ -47,6 +47,27 @@ export interface SpriteColorGroup {
   gradient?: { mid: number; range: number };
 }
 
+/**
+ * A named look: a skin list, or skins plus colors (by color group) that the outfit sets when worn.
+ * Colors it doesn't list keep their current value.
+ */
+export type OutfitDefinition =
+  | readonly string[]
+  | { skin: readonly string[]; colors?: Readonly<Record<string, string>> };
+
+/** An outfit's skins and colors, whichever form it was written in. */
+export function outfitLook(outfit: OutfitDefinition): {
+  skin: readonly string[];
+  colors: Readonly<Record<string, string>>;
+} {
+  return Array.isArray(outfit)
+    ? { skin: outfit as readonly string[], colors: {} }
+    : {
+        skin: (outfit as { skin: readonly string[] }).skin,
+        colors: (outfit as { colors?: Readonly<Record<string, string>> }).colors ?? {},
+      };
+}
+
 export interface CharacterManifest {
   /** Display name, shown on the dialogue nameplate. */
   name: string;
@@ -56,8 +77,8 @@ export interface CharacterManifest {
   sprite?: SpriteDefinition;
   /** Starting skins, combined in order (one per editor folder for mix-and-match outfits). */
   skin?: readonly string[];
-  /** Named skin sets for `>>> outfit <character> <name>`. */
-  outfits?: Readonly<Record<string, readonly string[]>>;
+  /** Named looks for `>>> outfit <character> <name>`: skins, optionally with colors. */
+  outfits?: Readonly<Record<string, OutfitDefinition>>;
   /** Slot attachment overrides; `null` hides a slot. */
   attachments?: Readonly<Record<string, string | null>>;
   /** Starting colors by the sprite's color group (or slot name), e.g. `{ hair: "#c1b01c" }`. */
@@ -311,6 +332,18 @@ export function validateManifest(value: unknown, files?: readonly string[]): Man
               if (!isColor(color)) error(`${gat}.presets.${preset}`, "Expected a hex color.");
         }
       }
+    }
+    for (const [name, outfit] of Object.entries(
+      isRecord(character.outfits) ? character.outfits : {},
+    )) {
+      const look = isRecord(outfit) ? outfit : { skin: outfit };
+      if (!Array.isArray(look.skin) || !look.skin.every((skin) => typeof skin === "string"))
+        error(`${at}.outfits.${name}`, "Expected a skin list or { skin, colors }.");
+      else if (
+        look.colors !== undefined &&
+        (!isRecord(look.colors) || !Object.values(look.colors).every(isColor))
+      )
+        error(`${at}.outfits.${name}.colors`, "Expected { group: hex color }.");
     }
     if (character.colors !== undefined) {
       if (!isRecord(character.colors)) error(`${at}.colors`, "Expected { group: color }.");
