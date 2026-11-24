@@ -7,7 +7,13 @@ import {
   TextureAtlas,
 } from "@esotericsoftware/spine-threejs";
 import { describe, expect, it } from "vite-plus/test";
-import { playAnimation, transitionPath, type SpineTransition } from "../src/transitions";
+import {
+  applyHolds,
+  heldAnimations,
+  playAnimation,
+  transitionPath,
+  type SpineTransition,
+} from "../src/transitions";
 
 // Held poses (one key, no duration) and a 0.4 second transition animation between two of them.
 const hold = (value: number) => ({ bones: { arm: { rotate: [{ value }] } } });
@@ -99,5 +105,30 @@ describe("playAnimation", () => {
     // The transition ended on the target pose, so nothing jumps while the mix finishes.
     advance(state, 0.3);
     expect(skeleton.findBone("arm")!.pose.rotation).toBeCloseTo(-45);
+  });
+});
+
+describe("playAnimation steps", () => {
+  it("skips steps the skeleton has no animation for", () => {
+    const state = stateWith(0.2, "pose/crossed");
+    playAnimation(state, 1, "pose/back", true, [
+      ["pose/crossed", "pose/back", ["pose/side", "missing-transition"]],
+    ]);
+    expect(queued(state, 1).map(({ name }) => name)).toEqual(["pose/side", "pose/back"]);
+  });
+});
+
+describe("holds", () => {
+  const holds = { "accessories/chestbind": "pose/back", "accessories/wristbind/rope": "pose/back" };
+  it("lists the animations the worn skins hold", () => {
+    expect(heldAnimations(holds, ["body", "accessories/chestbind/rope"])).toEqual(["pose/back"]);
+    expect(heldAnimations(holds, "accessories/wristbind/tape")).toEqual([]);
+    expect(heldAnimations(undefined, ["accessories/chestbind/rope"])).toEqual([]);
+  });
+  it("replaces animations in the held one's folder, or adds it", () => {
+    expect(applyHolds(["blink", "pose/crossed"], ["pose/back"])).toEqual(["blink", "pose/back"]);
+    expect(applyHolds(["blink"], ["pose/back"])).toEqual(["blink", "pose/back"]);
+    expect(applyHolds(["isIdle"], ["wave"])).toEqual(["isIdle", "wave"]);
+    expect(applyHolds(["pose/side"], [])).toEqual(["pose/side"]);
   });
 });

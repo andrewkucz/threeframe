@@ -10,7 +10,7 @@ import { MeshBasicMaterial } from "three";
 import type { SpineAppearance, SpineAssetData, SpineRig } from "./assets";
 import { applySlotTints, slotTints, type SpineColors } from "./colors";
 import { flippedSkins, hiddenSlots, resolveSkin, skinNames } from "./skins";
-import { playAnimation } from "./transitions";
+import { applyHolds, heldAnimations, playAnimation } from "./transitions";
 
 export interface SpineSpriteHandle {
   mesh: SkeletonMesh;
@@ -177,10 +177,16 @@ export const SpineSprite = forwardRef<SpineSpriteHandle, SpineSpriteProps>(funct
     for (const [from, to, seconds] of JSON.parse(mixKey) as [string, string, number][])
       stateData.setMix(from, to, Math.max(0, seconds));
   }, [mesh, mixDuration, mixKey]);
+  // Animations the worn skins hold (that this skeleton has) replace animations in their folder.
+  const heldKey = JSON.stringify(
+    heldAnimations(asset.holds, skin).filter((name) => !!data.findAnimation(name)),
+  );
+  const held = JSON.parse(heldKey) as string[];
+  const base = animation && applyHolds([animation], held)[0];
   const queueKey = JSON.stringify(queue ?? []);
   useEffect(() => {
-    if (animation) {
-      playAnimation(mesh.state, 0, animation, loop, latest.current.transitions);
+    if (base) {
+      playAnimation(mesh.state, 0, base, loop, latest.current.transitions);
       for (const entry of JSON.parse(queueKey) as SpineQueuedAnimation[])
         mesh.state.addAnimation(0, entry.animation, entry.loop ?? false, entry.delay ?? 0);
     } else {
@@ -188,8 +194,13 @@ export const SpineSprite = forwardRef<SpineSpriteHandle, SpineSpriteProps>(funct
       mesh.skeleton.setupPose();
     }
     mesh.update(0);
-  }, [mesh, animation, loop, queueKey]);
-  const trackKey = JSON.stringify(tracks ?? []);
+  }, [mesh, base, loop, queueKey]);
+  const trackKey = JSON.stringify(
+    applyHolds(
+      (tracks ?? []).map((track) => track.animation),
+      held.filter((name) => name !== base),
+    ).map((name, i) => ({ ...tracks?.[i], animation: name })),
+  );
   // The tracks last applied to this mesh, so unchanged tracks keep playing.
   const applied = useRef<{ mesh: SkeletonMesh; tracks: SpineTrack[] } | null>(null);
   useEffect(() => {
@@ -223,7 +234,10 @@ export const SpineSprite = forwardRef<SpineSpriteHandle, SpineSpriteProps>(funct
   }, [mesh, trackKey]);
   const skinKey = JSON.stringify(skin ?? null);
   // While flipped, the asset's flip skins for the worn skins go on last, so they win.
-  const flipKey = JSON.stringify(flipX ? flippedSkins(asset.flipSkins, skin) : []);
+  // (Ones this skeleton doesn't have are skipped, so several views of a character can share them.)
+  const flipKey = JSON.stringify(
+    flipX ? flippedSkins(asset.flipSkins, skin).filter((name) => !!data.findSkin(name)) : [],
+  );
   const resolvedSkin = useMemo(() => {
     const worn = JSON.parse(skinKey) as string | string[] | null;
     const flips = JSON.parse(flipKey) as string[];
@@ -251,7 +265,7 @@ export const SpineSprite = forwardRef<SpineSpriteHandle, SpineSpriteProps>(funct
       if (slot) slot.pose.color.a = 0;
     }
     mesh.update(0);
-  }, [mesh, resolvedSkin, skinKey, asset.hides, attachmentKey, tints, animation]);
+  }, [mesh, resolvedSkin, skinKey, asset.hides, attachmentKey, tints, base]);
   useEffect(() => {
     mesh.skeleton.scaleX = flipX ? -1 : 1;
     mesh.skeleton.scaleY = flipY ? -1 : 1;

@@ -17,7 +17,7 @@ import {
 } from "@threeframe/core";
 import type { SpineColorGroups, SpineColors } from "./colors";
 import type { SpineFlipSkins, SpineSlotHides } from "./skins";
-import type { SpineTransition } from "./transitions";
+import type { SpineHolds, SpineTransition } from "./transitions";
 
 /** Appearance a `SpineSprite` starts with when it doesn't set its own. */
 export interface SpineAppearance {
@@ -49,6 +49,12 @@ export interface SpineRig {
    * `["pose/crossed", "pose/behind-back", ["pose/side"]]` or `["run", "idle", ["run-to-idle"]]`.
    */
   transitions?: readonly SpineTransition[];
+  /**
+   * Animations held while a skin is worn, by skin name or folder: while a chest rope is worn,
+   * `{ "accessories/chestbind": "pose/behind-back" }` makes any `pose/…` track (or the base
+   * animation, if it is one) play `pose/behind-back`, and adds that track if none plays a pose.
+   */
+  holds?: SpineHolds;
 }
 export interface SpineSource extends SpineAppearance, SpineRig {
   skeleton: string;
@@ -96,6 +102,7 @@ export function spineAsset({
   hides,
   flipSkins,
   transitions,
+  holds,
 }: SpineSource): SpineAsset {
   return {
     skin,
@@ -105,6 +112,7 @@ export function spineAsset({
     hides,
     flipSkins,
     transitions,
+    holds,
     key: `spine:${format}:${scale}:${sourceKey(source)}${skeleton}:${atlas}`,
     async load(signal) {
       const readSkeleton = async (): Promise<string | ArrayBuffer> => {

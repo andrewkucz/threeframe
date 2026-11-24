@@ -83,6 +83,16 @@ spineAsset({ skeleton, atlas, hides: { "accessories/gag": ["mouth"] } });
 
 `hiddenSlots(hides, skins)` lists the slots hidden for a set of skins.
 
+## Held animations
+
+Some skins only make sense with one animation, such as a chest rope that holds the arms behind the back. List them on the asset as `holds`, by skin name or folder. While a matching skin is worn, a track (or the base animation) playing another animation from the held one's folder plays the held one instead, through any `transitions`, and the held animation is added on a track of its own when none is playing from that folder:
+
+```ts
+spineAsset({ skeleton, atlas, holds: { "accessories/chestbind": "pose/behind-back" } });
+```
+
+Held animations the skeleton doesn't have are ignored, and so are transition steps, so several skeletons of one character (front, side, back) can share one rig. `heldAnimations(holds, skins)` and `applyHolds(animations, held)` do the same for imperative use.
+
 ## Flipped skins
 
 `flipX` mirrors the whole skeleton, which moves anything that belongs to one side of a character to the other: a hair clip on her left ends up on her right. List skins to add while flipped as `flipSkins`, by skin name or folder; they go on after the worn skins, so they can move, show or hide those parts:
@@ -91,7 +101,7 @@ spineAsset({ skeleton, atlas, hides: { "accessories/gag": ["mouth"] } });
 spineAsset({ skeleton, atlas, flipSkins: { "body/hair/bob": ["flipped/body/hair/bob"] } });
 ```
 
-A flip skin can map the clip's placeholder to a copy placed at the mirrored spot with `scaleX: -1`, so flipping the sprite lands it back on her left. `flippedSkins(flipSkins, skins)` lists the skins added for a set of worn skins, and `skinFolders(data, { exclude })` leaves them out of pickers.
+A flip skin can map the clip's placeholder to a copy placed at the mirrored spot with `scaleX: -1`, so flipping the sprite lands it back on her left. Flip skins the skeleton doesn't have are skipped. `flippedSkins(flipSkins, skins)` lists the skins added for a set of worn skins, and `skinFolders(data, { exclude })` leaves them out of pickers.
 
 ## Transitions
 
