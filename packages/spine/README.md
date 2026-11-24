@@ -83,6 +83,16 @@ spineAsset({ skeleton, atlas, hides: { "accessories/gag": ["mouth"] } });
 
 `hiddenSlots(hides, skins)` lists the slots hidden for a set of skins.
 
+## Flipped skins
+
+`flipX` mirrors the whole skeleton, which moves anything that belongs to one side of a character to the other: a hair clip on her left ends up on her right. List skins to add while flipped as `flipSkins`, by skin name or folder; they go on after the worn skins, so they can move, show or hide those parts:
+
+```ts
+spineAsset({ skeleton, atlas, flipSkins: { "body/hair/bob": ["flipped/body/hair/bob"] } });
+```
+
+A flip skin can map the clip's placeholder to a copy placed at the mirrored spot with `scaleX: -1`, so flipping the sprite lands it back on her left. `flippedSkins(flipSkins, skins)` lists the skins added for a set of worn skins, and `skinFolders(data, { exclude })` leaves them out of pickers.
+
 ## Transitions
 
 Some changes look wrong as a straight blend: a character uncrosses her arms before putting them behind her back, and a runner slows down through `run-to-idle`. List them on the asset as `transitions`, `[from, to, via]`. When a track (the base animation, an overlay track or `handle.play`) switches from `from` to `to`, it plays each `via` animation first, fully mixed in and played to its end, then `to`:

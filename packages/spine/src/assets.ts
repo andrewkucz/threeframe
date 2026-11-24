@@ -16,7 +16,7 @@ import {
   type FileSource,
 } from "@threeframe/core";
 import type { SpineColorGroups, SpineColors } from "./colors";
-import type { SpineSlotHides } from "./skins";
+import type { SpineFlipSkins, SpineSlotHides } from "./skins";
 import type { SpineTransition } from "./transitions";
 
 /** Appearance a `SpineSprite` starts with when it doesn't set its own. */
@@ -38,6 +38,11 @@ export interface SpineRig {
    * their attachment.
    */
   hides?: SpineSlotHides;
+  /**
+   * Skins sprites add while flipped, by the skin name or folder they go with, for parts that
+   * belong to one side of the character: `{ "body/hair/bob": ["flipped/body/hair/bob"] }`.
+   */
+  flipSkins?: SpineFlipSkins;
   /**
    * Animations played on the way between two others on the same track, as `[from, to, via]`:
    * poses to pass through or transition animations, e.g.
@@ -89,6 +94,7 @@ export function spineAsset({
   colors,
   colorGroups,
   hides,
+  flipSkins,
   transitions,
 }: SpineSource): SpineAsset {
   return {
@@ -97,6 +103,7 @@ export function spineAsset({
     colors,
     colorGroups,
     hides,
+    flipSkins,
     transitions,
     key: `spine:${format}:${scale}:${sourceKey(source)}${skeleton}:${atlas}`,
     async load(signal) {

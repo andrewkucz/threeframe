@@ -38,6 +38,8 @@ export interface SpriteDefinition {
   colorGroups?: Readonly<Record<string, SpriteColorGroup>>;
   /** Slots hidden while a skin, or any skin in a folder, is worn: `{ "accessories/gag": ["mouth"] }`. */
   hides?: Readonly<Record<string, readonly string[]>>;
+  /** Skins worn while the character is mirrored, by skin or folder (see `@threeframe/spine`). */
+  flipSkins?: Readonly<Record<string, readonly string[]>>;
   /**
    * Animations a track plays between two others, as `[from, to, [via, ...]]`, e.g. a pose to pass
    * through or a transition animation (see `@threeframe/spine`).
@@ -321,6 +323,15 @@ export function validateManifest(value: unknown, files?: readonly string[]): Man
             ))
         )
           error(`${at}.sprite.hides`, "Expected { skin-or-folder: [slot, ...] }.");
+        const flipSkins = character.sprite.flipSkins;
+        if (
+          flipSkins !== undefined &&
+          (!isRecord(flipSkins) ||
+            !Object.values(flipSkins).every(
+              (skins) => Array.isArray(skins) && skins.every((skin) => typeof skin === "string"),
+            ))
+        )
+          error(`${at}.sprite.flipSkins`, "Expected { skin-or-folder: [skin, ...] }.");
         const transitions = character.sprite.transitions;
         const isNames = (names: unknown) =>
           Array.isArray(names) && names.every((name) => typeof name === "string");

@@ -21,16 +21,19 @@ export interface SpineSkinFolder {
 export interface SpineSkinFolderOptions {
   /** List the default skin too. It is otherwise omitted, since the runtime always falls back to it. */
   includeDefault?: boolean;
+  /** Skin names to leave out, e.g. an asset's `flipSkins`, which sprites add on their own. */
+  exclude?: readonly string[];
 }
 
 /** Groups a skeleton's skins by editor folder, keeping the export's order. */
 export function skinFolders(
   data: SkeletonData,
-  { includeDefault = false }: SpineSkinFolderOptions = {},
+  { includeDefault = false, exclude = [] }: SpineSkinFolderOptions = {},
 ): SpineSkinFolder[] {
   const folders = new Map<string, SpineSkinFolder>();
   for (const skin of data.skins) {
     if (!includeDefault && skin === data.defaultSkin) continue;
+    if (exclude.includes(skin.name)) continue;
     const slash = skin.name.lastIndexOf("/");
     const path = slash < 0 ? "" : skin.name.slice(0, slash);
     let folder = folders.get(path);
@@ -112,17 +115,41 @@ export function slotAttachments(
 /** Slot names to hide, by the skin name or skin folder that hides them. */
 export type SpineSlotHides = Readonly<Record<string, readonly string[]>>;
 
+/** Values of `rules` whose key (a skin name or skin folder) matches a worn skin, in rule order. */
+function matching(
+  rules: Readonly<Record<string, readonly string[]>> | undefined,
+  skin: string | readonly string[] | null | undefined,
+): string[] {
+  const names = skinNames(skin);
+  const found = new Set<string>();
+  for (const [key, values] of Object.entries(rules ?? {})) {
+    const folder = `${key.replace(/\/$/, "")}/`;
+    if (names.some((name) => name === key || name.startsWith(folder)))
+      for (const value of values) found.add(value);
+  }
+  return [...found];
+}
+
 /** The slots `hides` hides for the worn skins (matched by full name or by folder). */
 export function hiddenSlots(
   hides: SpineSlotHides | undefined,
   skin: string | readonly string[] | null | undefined,
 ): string[] {
-  const names = skinNames(skin);
-  const hidden = new Set<string>();
-  for (const [key, slots] of Object.entries(hides ?? {})) {
-    const folder = `${key.replace(/\/$/, "")}/`;
-    if (names.some((name) => name === key || name.startsWith(folder)))
-      for (const slot of slots) hidden.add(slot);
-  }
-  return [...hidden];
+  return matching(hides, skin);
+}
+
+/**
+ * Skins worn only while a sprite is flipped horizontally, by the skin name or skin folder they go
+ * with. Mirroring moves parts that belong to one side of a character, such as a hair clip on her
+ * left, to the other side; a flip skin puts them back, or shows or hides them:
+ * `{ "body/hair/bob": ["flipped/body/hair/bob"] }`.
+ */
+export type SpineFlipSkins = Readonly<Record<string, readonly string[]>>;
+
+/** The skins `flipSkins` adds to the worn skins while flipped (matched by full name or folder). */
+export function flippedSkins(
+  flipSkins: SpineFlipSkins | undefined,
+  skin: string | readonly string[] | null | undefined,
+): string[] {
+  return matching(flipSkins, skin);
 }

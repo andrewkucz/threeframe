@@ -1,7 +1,14 @@
 import { AtlasAttachmentLoader, SkeletonJson, TextureAtlas } from "@esotericsoftware/spine-threejs";
 import { describe, expect, it } from "vite-plus/test";
 import { spineAsset } from "../src/assets";
-import { hiddenSlots, resolveSkin, skinFolders, skinNames, slotAttachments } from "../src/skins";
+import {
+  flippedSkins,
+  hiddenSlots,
+  resolveSkin,
+  skinFolders,
+  skinNames,
+  slotAttachments,
+} from "../src/skins";
 
 const point = { type: "point" };
 const data = new SkeletonJson(new AtlasAttachmentLoader(new TextureAtlas(""))).readSkeletonData({
@@ -42,6 +49,10 @@ describe("skinFolders", () => {
   });
   it("can include the default skin", () => {
     expect(skinFolders(data, { includeDefault: true })[0].skins[0].name).toBe("default");
+  });
+  it("leaves out excluded skins and folders left empty", () => {
+    const paths = skinFolders(data, { exclude: ["hats/cap", "hats/crown"] }).map((f) => f.path);
+    expect(paths).toEqual(["", "outfits/summer"]);
   });
 });
 
@@ -105,5 +116,18 @@ describe("hiddenSlots", () => {
   it("hides nothing for other skins", () => {
     expect(hiddenSlots(hides, ["hats/crowned", "outfitsx"])).toEqual([]);
     expect(hiddenSlots(undefined, ["hats/crown"])).toEqual([]);
+  });
+});
+
+describe("flippedSkins", () => {
+  const flipSkins = { "hats/crown": ["flipped/hats/crown"], hats: ["flipped/hats"] };
+  it("adds the flip skins of worn skins, by full name or folder", () => {
+    expect(flippedSkins(flipSkins, ["base", "hats/crown"])).toEqual([
+      "flipped/hats/crown",
+      "flipped/hats",
+    ]);
+    expect(flippedSkins(flipSkins, "hats/cap")).toEqual(["flipped/hats"]);
+    expect(flippedSkins(flipSkins, ["base"])).toEqual([]);
+    expect(flippedSkins(undefined, ["hats/crown"])).toEqual([]);
   });
 });

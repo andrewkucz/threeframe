@@ -9,7 +9,7 @@ import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from "rea
 import { MeshBasicMaterial } from "three";
 import type { SpineAppearance, SpineAssetData, SpineRig } from "./assets";
 import { applySlotTints, slotTints, type SpineColors } from "./colors";
-import { hiddenSlots, resolveSkin } from "./skins";
+import { flippedSkins, hiddenSlots, resolveSkin, skinNames } from "./skins";
 import { playAnimation } from "./transitions";
 
 export interface SpineSpriteHandle {
@@ -80,6 +80,7 @@ export interface SpineSpriteProps extends Omit<ThreeElements["group"], "ref"> {
    * slots' setup colors. Defaults to the asset's `colors`; animations keying a slot's color win.
    */
   colors?: SpineColors;
+  /** Mirrors the sprite, wearing the asset's `flipSkins` for the worn skins. */
   flipX?: boolean;
   flipY?: boolean;
   tint?: string;
@@ -221,10 +222,13 @@ export const SpineSprite = forwardRef<SpineSpriteHandle, SpineSpriteProps>(funct
     mesh.update(0);
   }, [mesh, trackKey]);
   const skinKey = JSON.stringify(skin ?? null);
-  const resolvedSkin = useMemo(
-    () => resolveSkin(data, JSON.parse(skinKey) as string | string[] | null),
-    [data, skinKey],
-  );
+  // While flipped, the asset's flip skins for the worn skins go on last, so they win.
+  const flipKey = JSON.stringify(flipX ? flippedSkins(asset.flipSkins, skin) : []);
+  const resolvedSkin = useMemo(() => {
+    const worn = JSON.parse(skinKey) as string | string[] | null;
+    const flips = JSON.parse(flipKey) as string[];
+    return resolveSkin(data, flips.length ? [...skinNames(worn), ...flips] : worn);
+  }, [data, skinKey, flipKey]);
   const attachmentKey = JSON.stringify(attachments ?? {});
   const colorKey = JSON.stringify(colors ?? {});
   const tints = useMemo(
