@@ -17,6 +17,8 @@ export interface StageCharacter {
   y?: number;
   scale?: number;
   flip: boolean;
+  /** Named view of the sprite (see `SpriteDefinition.views`); omitted is the first. */
+  view?: string;
   opacity: number;
   tint: string;
   /** Base animation on track 0. */
@@ -136,6 +138,7 @@ export function stageCharacter(
     visible: true,
     x: 0,
     flip: definition.flip ?? false,
+    view: definition.view,
     opacity: 1,
     tint: "#ffffff",
     animation: definition.animation,
@@ -164,6 +167,7 @@ export function sceneStage(
     const carried = previous.characters[member.id];
     characters[member.id] = stageCharacter(manifest, member.id, {
       ...(carried && {
+        view: carried.view,
         skin: carried.skin,
         attachments: carried.attachments,
         colors: carried.colors,

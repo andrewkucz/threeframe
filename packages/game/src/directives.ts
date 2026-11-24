@@ -1,4 +1,4 @@
-import { outfitLook, type GameManifest, type StateValue } from "./manifest";
+import { outfitLook, spriteView, type GameManifest, type StateValue } from "./manifest";
 import {
   removeSkins,
   resolvePosition,
@@ -537,6 +537,57 @@ export const builtinDirectives: readonly DirectiveDefinition[] = [
       }));
     },
     check: (directive, manifest) => checkCharacter(directive, manifest),
+  },
+  {
+    name: "view",
+    category: "character",
+    usage: "view <character> <view>",
+    description: "Shows a character from another of its sprite's `views`, e.g. `back`.",
+    run(directive, context) {
+      const id = requireCharacter(context, directive);
+      const view = directiveReader(directive).arg(1);
+      if (!view) throw new Error(`Missing view: ${directive.source}`);
+      updateCharacter(context, id, () => ({ view }));
+    },
+    check: (directive, manifest) => {
+      const problems = checkCharacter(directive, manifest);
+      const views = manifest.characters?.[String(directive.args[0])]?.sprite?.views ?? [];
+      const view = directive.args[1];
+      if (view === undefined) problems.push("Missing view.");
+      else if (!views.some((entry) => entry.name === String(view)))
+        problems.push(`Unknown view: ${String(view)}`);
+      return problems;
+    },
+  },
+  {
+    name: "turn",
+    category: "character",
+    usage: "turn <character> left|right [steps=1]",
+    description:
+      "Turns a character through its sprite's `views`, listed in the order it turns to its right: `right` steps forward, `left` back, wrapping around.",
+    run(directive, context) {
+      const read = directiveReader(directive);
+      const id = requireCharacter(context, directive);
+      const views = context.manifest.characters?.[id]?.sprite?.views ?? [];
+      if (!views.length) return;
+      const steps = Math.round(read.number("steps", 1)) * (read.arg(1) === "left" ? -1 : 1);
+      updateCharacter(context, id, (current) => {
+        const at = views.findIndex(
+          (view) =>
+            view.name === spriteView(context.manifest.characters![id].sprite!, current.view).name,
+        );
+        const next = (((Math.max(at, 0) + steps) % views.length) + views.length) % views.length;
+        return { view: views[next].name };
+      });
+    },
+    check: (directive, manifest) => {
+      const problems = checkCharacter(directive, manifest);
+      const way = directive.args[1];
+      if (way !== "left" && way !== "right") problems.push("Expected left or right.");
+      if (!manifest.characters?.[String(directive.args[0])]?.sprite?.views?.length)
+        problems.push("This character's sprite has no views to turn through.");
+      return problems;
+    },
   },
   {
     name: "tint",

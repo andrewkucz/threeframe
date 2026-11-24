@@ -40,12 +40,42 @@ export interface SpriteDefinition {
   hides?: Readonly<Record<string, readonly string[]>>;
   /** Skins worn while the character is mirrored, by skin or folder (see `@threeframe/spine`). */
   flipSkins?: Readonly<Record<string, readonly string[]>>;
+  /** Animations held while a skin or folder is worn, e.g. `{ "accessories/chestbind": "pose/behind-back" }`. */
+  holds?: Readonly<Record<string, string>>;
+  /**
+   * Other drawings of the character, e.g. from the side or from behind, in the order the character
+   * turns to their right (`>>> turn`). The first is where characters start. Each view's skeleton
+   * shares the sprite's skin, slot and color group names, so the character's look carries over.
+   */
+  views?: readonly SpriteView[];
   /**
    * Animations a track plays between two others, as `[from, to, [via, ...]]`, e.g. a pose to pass
    * through or a transition animation (see `@threeframe/spine`).
    */
   transitions?: readonly (readonly [from: string, to: string, via: readonly string[]])[];
 }
+/** One way of drawing a character (see `SpriteDefinition.views`). */
+export interface SpriteView {
+  name: string;
+  /** Package-relative skeleton and atlas; omit both to use the sprite's own (e.g. mirrored). */
+  skeleton?: string;
+  atlas?: string;
+  /** Mirror the sprite in this view, on top of the character's own `flip`. */
+  flip?: boolean;
+}
+
+/** A view of a sprite by name: its skeleton, atlas and mirroring. Unknown names give the first view, or the sprite itself. */
+export function spriteView(sprite: SpriteDefinition, name?: string) {
+  const views = sprite.views ?? [];
+  const view = views.find((entry) => entry.name === name) ?? views[0];
+  return {
+    name: view?.name,
+    skeleton: view?.skeleton ?? sprite.skeleton,
+    atlas: view?.atlas ?? sprite.atlas,
+    flip: view?.flip ?? false,
+  };
+}
+
 export interface SpriteColorGroup {
   slots: readonly string[];
   default?: string;
@@ -98,6 +128,8 @@ export interface CharacterManifest {
   y?: number;
   /** Mirror the sprite by default. */
   flip?: boolean;
+  /** Starting view of the sprite (see `SpriteDefinition.views`). */
+  view?: string;
 }
 
 interface BackdropBase {
@@ -332,6 +364,31 @@ export function validateManifest(value: unknown, files?: readonly string[]): Man
             ))
         )
           error(`${at}.sprite.flipSkins`, "Expected { skin-or-folder: [skin, ...] }.");
+        const holds = character.sprite.holds;
+        if (
+          holds !== undefined &&
+          (!isRecord(holds) || !Object.values(holds).every((name) => typeof name === "string"))
+        )
+          error(`${at}.sprite.holds`, "Expected { skin-or-folder: animation }.");
+        const views = character.sprite.views;
+        if (views !== undefined && !Array.isArray(views))
+          error(`${at}.sprite.views`, "Expected [{ name, skeleton?, atlas?, flip? }, ...].");
+        const names = new Set<string>();
+        (Array.isArray(views) ? views : []).forEach((view: unknown, index) => {
+          const vat = `${at}.sprite.views.${index}`;
+          if (!isRecord(view) || typeof view.name !== "string" || !view.name)
+            return error(vat, "Expected { name, skeleton?, atlas?, flip? }.");
+          if (names.has(view.name)) error(`${vat}.name`, `Duplicate view: ${view.name}`);
+          names.add(view.name);
+          if ((view.skeleton === undefined) !== (view.atlas === undefined))
+            error(vat, "Give both skeleton and atlas, or neither.");
+          if (view.skeleton !== undefined) file(view.skeleton as string, `${vat}.skeleton`);
+          if (view.atlas !== undefined) file(view.atlas as string, `${vat}.atlas`);
+          if (view.flip !== undefined && typeof view.flip !== "boolean")
+            error(`${vat}.flip`, "Expected true or false.");
+        });
+        if (character.view !== undefined && !names.has(character.view as string))
+          error(`${at}.view`, `Unknown view: ${JSON.stringify(character.view)}`);
         const transitions = character.sprite.transitions;
         const isNames = (names: unknown) =>
           Array.isArray(names) && names.every((name) => typeof name === "string");

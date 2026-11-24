@@ -1,6 +1,6 @@
 import { memorySource } from "@threeframe/core";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
-import { createManifest, type GameManifest } from "../src/manifest";
+import { createManifest, validateManifest, type GameManifest } from "../src/manifest";
 import { createGameArchive, loadGamePackage, packageFromFiles } from "../src/package";
 import { AUTOSAVE_SLOT, SaveStore, memoryPersister, parseSave } from "../src/saves";
 import { GameSession, type GameEvent } from "../src/session";
@@ -295,6 +295,66 @@ describe("GameSession", () => {
       type: "confetti",
       params: { count: 3 },
     });
+  });
+});
+
+describe("sprite views", () => {
+  it("shows characters from other views and turns them through the list", async () => {
+    const views = [
+      { name: "front" },
+      { name: "side-left", skeleton: "ada-side.json", atlas: "ada-side.atlas", flip: true },
+      { name: "back", skeleton: "ada-back.json", atlas: "ada-back.atlas" },
+    ];
+    const withViews = createManifest({
+      ...manifest,
+      characters: {
+        ada: {
+          ...manifest.characters!.ada,
+          sprite: { ...manifest.characters!.ada.sprite!, views },
+        },
+      },
+    });
+    const pkg = packageFromFiles(withViews, {
+      ...files,
+      "ada-side.json": "{}",
+      "ada-side.atlas": "",
+      "ada-back.json": "{}",
+      "ada-back.atlas": "",
+      "one/intro.ink":
+        ">>> view ada back\nOne.\n>>> turn ada right\nTwo.\n>>> turn ada left steps=2\nThree.\n",
+    });
+    const session = new GameSession(pkg, { saves: false });
+    await session.newGame();
+    const view = () => session.getSnapshot().stage.characters.ada.view;
+    expect(view()).toBe("back");
+    session.getSnapshot().controller!.advance();
+    expect(view()).toBe("front");
+    session.getSnapshot().controller!.advance();
+    expect(view()).toBe("side-left");
+  });
+
+  it("validates views", () => {
+    const check = (views: unknown, view?: string) =>
+      validateManifest({
+        ...manifest,
+        characters: {
+          ada: {
+            ...manifest.characters!.ada,
+            view,
+            sprite: { ...manifest.characters!.ada.sprite!, views },
+          },
+        },
+      }).map((issue) => issue.path);
+    expect(
+      check([{ name: "front" }, { name: "back", skeleton: "b.json", atlas: "b.atlas" }], "back"),
+    ).toEqual([]);
+    expect(check([{ name: "front" }, { name: "front" }])).toEqual([
+      "characters.ada.sprite.views.1.name",
+    ]);
+    expect(check([{ name: "back", skeleton: "b.json" }])).toEqual([
+      "characters.ada.sprite.views.0",
+    ]);
+    expect(check([{ name: "front" }], "back")).toEqual(["characters.ada.view"]);
   });
 });
 

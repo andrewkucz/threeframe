@@ -53,6 +53,27 @@ Loading validates the manifest and, for enumerable sources, that every reference
         "atlas": "characters/ada/ada.atlas",
         "colorGroups": { "hair": { "slots": ["hair"], "presets": { "blonde": "#c1b01c" } } },
         "hides": { "accessories/gag": ["mouth"] }, // slots hidden while a skin (folder) is worn
+        "holds": { "accessories/handcuffs": "pose/behind-back" }, // animations held while worn
+        // Other drawings of the character, in the order it turns to its right (`view`, `turn`):
+        "views": [
+          { "name": "front" },
+          {
+            "name": "side-left",
+            "skeleton": "characters/ada/ada-side.json",
+            "atlas": "characters/ada/ada-side.atlas",
+            "flip": true,
+          },
+          {
+            "name": "back",
+            "skeleton": "characters/ada/ada-back.json",
+            "atlas": "characters/ada/ada-back.atlas",
+          },
+          {
+            "name": "side-right",
+            "skeleton": "characters/ada/ada-side.json",
+            "atlas": "characters/ada/ada-side.atlas",
+          },
+        ],
       },
       "skin": ["body/ada", "clothes/top/shirt1"], // combined in export order
       "outfits": {
@@ -137,6 +158,7 @@ Grammar: `name positional… key=value… flag…`; quote values with spaces. In
 | `attach <char> <slot> <name\|none\|reset>`                                           | Slot attachment override                            |
 | `color <char> <group>=<preset\|color\|reset>...`                                     | Recolor parts by the sprite's color groups          |
 | `face <char> left\|right\|flip`, `tint <char> <color>`                               | Facing and color                                    |
+| `view <char> <view>`, `turn <char> left\|right [steps]`                              | Another of the sprite's views; turn through them    |
 | `camera [zoom] [x] [y] [focus=char] [duration]`, `camera reset`                      | Pans and zooms                                      |
 | `shake`, `flash [color]`, `fade out\|in [color]`, `vignette <0–1>`                   | Screen effects                                      |
 | `weather rain\|snow\|dust\|petals\|fireflies\|embers\|none [intensity] [wind]`       | Ambient particles                                   |

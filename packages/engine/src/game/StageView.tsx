@@ -1,6 +1,7 @@
 import { useFrame } from "@react-three/fiber";
 import { layoutBackdrop, useAsset, useDisposable } from "@threeframe/core";
 import {
+  spriteView,
   stageCharacter,
   stageSize,
   type GamePackage,
@@ -246,7 +247,7 @@ function StageActor({
   warn: (message: string) => void;
   actors?: StageActors;
 }) {
-  const asset = gameAssets(pkg).sprite(character.id);
+  const asset = gameAssets(pkg).sprite(character.id, character.view);
   if (!asset) return null;
   return (
     <SpriteActor
@@ -291,7 +292,7 @@ export function CharacterSprite({
     () => stageCharacter(pkg.manifest, id, JSON.parse(key) as Partial<StageCharacter>),
     [pkg, id, key],
   );
-  const asset = gameAssets(pkg).sprite(id);
+  const asset = gameAssets(pkg).sprite(id, character.view);
   const latest = useRef(onReady);
   latest.current = onReady;
   const relay = useMemo(() => {
@@ -343,6 +344,8 @@ function SpriteActor({
 }) {
   const data = useSpineData(asset);
   const definition = pkg.manifest.characters?.[character.id];
+  // A view can be another one mirrored (e.g. a left-facing profile drawn facing right).
+  const viewFlip = definition?.sprite ? spriteView(definition.sprite, character.view).flip : false;
   const floor = pkg.manifest.stage?.floor ?? -height / 2;
   // Without an explicit scale, a sprite stands 85% of the stage tall.
   const scale = character.scale ?? definition?.scale ?? (height * 0.85) / (data.height || height);
@@ -503,7 +506,7 @@ function SpriteActor({
         queue={queue}
         tracks={tracks}
         paused={paused}
-        flipX={character.flip}
+        flipX={character.flip !== viewFlip}
         onReady={(handle) => {
           sprite.current = handle;
           if (actors && group.current)
